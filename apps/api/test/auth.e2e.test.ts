@@ -69,9 +69,21 @@ describe('registration', () => {
   it('does not leave a half-created account when registration fails', async () => {
     const creds = newCredentials();
     await register(creds);
-    const before = await ctx.prisma.workspace.count();
-    await request(ctx.server).post('/api/v1/auth/register').send(creds);
-    expect(await ctx.prisma.workspace.count()).toBe(before);
+    // Scoped to this user: a global count races with other suites sharing the test database.
+    const user = await ctx.prisma.user.findUniqueOrThrow({ where: { email: creds.email } });
+    const rows = () =>
+      Promise.all([
+        ctx.prisma.user.count({ where: { email: creds.email } }),
+        ctx.prisma.workspace.count({ where: { personalOwnerId: user.id } }),
+        ctx.prisma.workspaceMember.count({ where: { userId: user.id } }),
+        ctx.prisma.session.count({ where: { userId: user.id } }),
+      ]);
+    const before = await rows();
+    expect(before).toEqual([1, 1, 1, 1]);
+
+    const duplicate = await request(ctx.server).post('/api/v1/auth/register').send(creds);
+    expect(duplicate.status).toBe(409);
+    expect(await rows()).toEqual(before); // nothing half-created, no extra session issued
   });
 
   it('validates input strictly', async () => {
