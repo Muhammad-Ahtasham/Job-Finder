@@ -15,6 +15,7 @@
     "@jobfinder/config": "workspace:*",
     "@jobfinder/contracts": "workspace:*",
     "@jobfinder/database": "workspace:*",
+    "@jobfinder/discovery": "workspace:*",
     "@nestjs/common": "^11.2.11",
     "@nestjs/core": "^11.2.11",
     "bullmq": "^6.7.8",

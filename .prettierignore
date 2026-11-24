@@ -7,3 +7,4 @@ pnpm-lock.yaml
 packages/database/src/generated
 packages/database/prisma/migrations
 apps/web/src/components/ui
+apps/web/next-env.d.ts
