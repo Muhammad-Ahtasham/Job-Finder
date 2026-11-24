@@ -1,0 +1,92 @@
+// Phase 1 schema: identity + tenancy. Canonical company/job tables arrive in later phases.
+
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  VIEWER
+}
+
+model User {
+  id           String   @id @default(uuid(7)) @db.Uuid
+  /// Always stored lowercase + trimmed (normalized in the application layer).
+  email        String   @unique
+  name         String
+  /// Argon2id PHC string. Never returned by any API.
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships       WorkspaceMember[]
+  sessions          Session[]
+  personalWorkspace Workspace?        @relation("PersonalWorkspaceOwner")
+
+  @@map("users")
+}
+
+model Workspace {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  name           String
+  slug           String   @unique
+  isPersonal     Boolean  @default(false) @map("is_personal")
+  /// Set only for personal workspaces; UNIQUE guarantees at most one per user.
+  personalOwnerId String? @unique @map("personal_owner_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  personalOwner User?             @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: Cascade)
+  members       WorkspaceMember[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String        @id @default(uuid(7)) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  userId      String        @map("user_id") @db.Uuid
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+  @@map("workspace_members")
+}
+
+/// Server-side session. The raw token only ever exists in the client's cookie;
+/// we store its SHA-256 so a database leak does not yield usable sessions.
+model Session {
+  id                  String    @id @default(uuid(7)) @db.Uuid
+  userId              String    @map("user_id") @db.Uuid
+  tokenHash           String    @unique @map("token_hash")
+  /// Previous token, honoured briefly after rotation so parallel requests don't 401.
+  previousTokenHash   String?   @map("previous_token_hash")
+  previousValidUntil  DateTime? @map("previous_valid_until")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  lastSeenAt          DateTime  @default(now()) @map("last_seen_at")
+  rotatedAt           DateTime  @default(now()) @map("rotated_at")
+  /// Absolute expiry; the session is dead after this regardless of activity.
+  expiresAt           DateTime  @map("expires_at")
+  userAgent           String?   @map("user_agent")
+  ip                  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([previousTokenHash])
+  @@map("sessions")
+}
