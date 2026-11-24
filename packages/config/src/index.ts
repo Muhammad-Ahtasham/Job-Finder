@@ -11,6 +11,10 @@ const booleanFromString = z
   .enum(['true', 'false', '1', '0'])
   .transform((value) => value === 'true' || value === '1');
 
+/** `.env` files commonly contain `KEY=` for unset values; treat blank as "not set". */
+const optionalString = <T extends z.ZodType<string>>(schema: T) =>
+  z.preprocess((value) => (value === '' ? undefined : value), schema.optional());
+
 const positiveInt = (name: string) =>
   z.coerce
     .number({ message: `${name} must be a number` })
@@ -102,6 +106,33 @@ export const workerEnvSchema = baseEnvSchema
     WORKER_HEARTBEAT_INTERVAL_MS: positiveInt('WORKER_HEARTBEAT_INTERVAL_MS').default(10_000),
     /** Same variable the API uses: the worker purges sessions idle for longer than this. */
     SESSION_IDLE_TTL_HOURS: positiveInt('SESSION_IDLE_TTL_HOURS').default(24),
+
+    // ---- Company discovery providers (see docs/provider-terms-register.md) ----
+    /** Comma-separated provider ids to enable. Unknown ids are reported and skipped at boot. */
+    DISCOVERY_PROVIDERS: z
+      .string()
+      .default('overpass-osm')
+      .transform((value) =>
+        value
+          .split(',')
+          .map((id) => id.trim())
+          .filter(Boolean),
+      ),
+    /** Email or URL where the operator can be reached; sent in the User-Agent (OSM policy). */
+    DISCOVERY_CONTACT: optionalString(z.string().trim().max(200)),
+    BRAVE_SEARCH_API_KEY: optionalString(z.string().trim().min(1)),
+    /** Must be "true" to enable Brave: its terms bar storing results without a storage-rights plan. */
+    BRAVE_SEARCH_STORAGE_RIGHTS: booleanFromString.default(false),
+    BRAVE_SEARCH_RPS: positiveInt('BRAVE_SEARCH_RPS').default(1),
+    BRAVE_SEARCH_PAGES: positiveInt('BRAVE_SEARCH_PAGES').max(10).default(2),
+    /** Prefer your own Overpass instance (Geofabrik extract) over the public one for real use. */
+    OVERPASS_API_URL: z.url().default('https://overpass-api.de/api/interpreter'),
+    OVERPASS_MIN_INTERVAL_MS: positiveInt('OVERPASS_MIN_INTERVAL_MS').default(5000),
+    /** Tasks stuck in QUEUED/RETRYING longer than this are re-enqueued by the reconciler. */
+    DISCOVERY_RECONCILE_STALE_SECONDS: positiveInt('DISCOVERY_RECONCILE_STALE_SECONDS').default(60),
+    /** Exponential backoff base for retrying failed provider calls. */
+    DISCOVERY_RETRY_BASE_MS: positiveInt('DISCOVERY_RETRY_BASE_MS').default(5000),
+    DISCOVERY_MAX_ATTEMPTS: positiveInt('DISCOVERY_MAX_ATTEMPTS').max(10).default(5),
   })
   .transform((env) => ({
     ...env,

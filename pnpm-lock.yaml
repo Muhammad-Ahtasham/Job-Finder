@@ -227,6 +227,9 @@ importers:
       '@jobfinder/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@jobfinder/discovery':
+        specifier: workspace:*
+        version: link:../../packages/discovery
       '@nestjs/common':
         specifier: ^11.2.11
         version: 11.2.11(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
@@ -245,6 +248,9 @@ importers:
       argon2:
         specifier: ^0.45.2
         version: 0.45.2
+      bullmq:
+        specifier: ^6.7.8
+        version: 6.7.8(ioredis@6.1.0(supports-color@8.1.1))(pg@8.23.1)
       cookie-parser:
         specifier: ^1.4.7
         version: 1.4.7
@@ -275,7 +281,7 @@ importers:
     devDependencies:
       '@nestjs/cli':
         specifier: ^11.0.24
-        version: 11.0.24(@swc/core@1.16.22)(@types/node@22.20.5)(lightningcss@1.33.0)(postcss@8.5.33)(prettier@3.10.1)
+        version: 11.0.24(@swc/core@1.16.22(@swc/helpers@0.5.23))(@types/node@22.20.5)(lightningcss@1.33.0)(postcss@8.5.33)(prettier@3.10.1)
       '@nestjs/schematics':
         specifier: ^11.1.0
         version: 11.1.0(chokidar@4.0.3)(prettier@3.10.1)(typescript@5.9.3)
@@ -284,7 +290,7 @@ importers:
         version: 11.2.11(@nestjs/common@11.2.11(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1))(@nestjs/core@11.2.11)(@nestjs/platform-express@11.2.11)
       '@swc/core':
         specifier: ^1.16.22
-        version: 1.16.22
+        version: 1.16.22(@swc/helpers@0.5.23)
       '@types/cookie-parser':
         specifier: ^1.4.10
         version: 1.4.10(@types/express@5.0.6)
@@ -308,7 +314,7 @@ importers:
         version: 7.3.2(supports-color@8.1.1)
       unplugin-swc:
         specifier: ^2.0.0
-        version: 2.0.0(@swc/core@1.16.22)(rolldown@1.2.19)(vite@8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4))(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33))
+        version: 2.0.0(@swc/core@1.16.22(@swc/helpers@0.5.23))(rolldown@1.2.19)(vite@8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4))(webpack@5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33))
 
   apps/web:
     dependencies:
@@ -379,6 +385,9 @@ importers:
       '@jobfinder/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@jobfinder/discovery':
+        specifier: workspace:*
+        version: link:../../packages/discovery
       '@nestjs/common':
         specifier: ^11.2.11
         version: 11.2.11(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
@@ -461,6 +470,15 @@ importers:
       prisma:
         specifier: 7.10.1
         version: 7.10.1(@types/node@22.20.5)(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(typescript@5.9.3)
+
+  packages/discovery:
+    dependencies:
+      libphonenumber-js:
+        specifier: ^1.13.17
+        version: 1.13.17
+      tldts:
+        specifier: ^7.5.5
+        version: 7.5.5
 
 packages:
 
@@ -2927,6 +2945,9 @@ packages:
     resolution: {integrity: sha512-+bT2uH4E5LGE7h/n3evcS/sQlJXCpIp6ym8OWJ5eV6+67Dsql/LaaT7qJBAt2rzfoa/5QBGBhxDix1dMt2kQKQ==}
     engines: {node: '>= 0.8.0'}
 
+  libphonenumber-js@1.13.17:
+    resolution: {integrity: sha512-V92dxRHhYTsHF5B6IjR8rtKW6qL7xKuERPFFqZt7XQl8A+NikbwEzjhxGpM+R6JnWjaL7/wokWSdTG/eyYAscQ==}
+
   lightningcss-android-arm64@1.33.0:
     resolution: {integrity: sha512-gEpRTalKdosp4Bb8qWtc2iOgE5SeIHlpS1up9bFq2wAyYhl1UdTObYiHe98zEM9SQvSoqQZ1IQD0JNpg3Ml5pg==}
     engines: {node: '>= 12.0.0'}
@@ -3813,6 +3834,13 @@ packages:
     resolution: {integrity: sha512-wXR/dYpcqKmfWpEdZjiKJOwCNFndD0DMnrW/cYjVGttEkBfVgcLFHoNrlj47mjOVic9yyNu65alsgF4NQyTa2g==}
     engines: {node: '>=12.0.0'}
 
+  tldts-core@7.5.5:
+    resolution: {integrity: sha512-rEJz/8cJFY/bdF354gl14yxavbrIbvM+FcbkYVQ6CSCMQTJdUFUIm39TTWSiGPvcpQh7/F6qHrD3SkwwdgtDCw==}
+
+  tldts@7.5.5:
+    resolution: {integrity: sha512-Hy6IImaWALzJOgCIss4gIFi4G0M9lqk95pFKCUVxQPZw+biZ1Pv6f28JpYgahpJB+BufA0HYsIU/aP/WIx3KRg==}
+    hasBin: true
+
   toidentifier@1.0.1:
     resolution: {integrity: sha512-o5sSPKEkg/DIQNmH43V0/uerLrpzVedkUh8tGNvaeXpfpuwjKenlSox/2O/BTlZUtEe+JG7s5YhEz608PlAHRA==}
     engines: {node: '>=0.6'}
@@ -4628,44 +4656,6 @@ snapshots:
       - uglify-js
       - webpack-cli
 
-  '@nestjs/cli@11.0.24(@swc/core@1.16.22)(@types/node@22.20.5)(lightningcss@1.33.0)(postcss@8.5.33)(prettier@3.10.1)':
-    dependencies:
-      '@angular-devkit/core': 19.2.27(chokidar@4.0.3)
-      '@angular-devkit/schematics': 19.2.27(chokidar@4.0.3)
-      '@angular-devkit/schematics-cli': 19.2.27(@types/node@22.20.5)(chokidar@4.0.3)
-      '@inquirer/prompts': 7.10.1(@types/node@22.20.5)
-      '@nestjs/schematics': 11.1.0(chokidar@4.0.3)(prettier@3.10.1)(typescript@5.9.3)
-      ansis: 4.2.0
-      chokidar: 4.0.3
-      cli-table3: 0.6.5
-      commander: 4.1.1
-      fork-ts-checker-webpack-plugin: 9.1.0(typescript@5.9.3)(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33))
-      glob: 13.0.6
-      node-emoji: 1.11.0
-      ora: 5.4.1
-      tsconfig-paths: 4.2.0
-      tsconfig-paths-webpack-plugin: 4.2.0
-      typescript: 5.9.3
-      webpack: 5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)
-      webpack-node-externals: 3.0.0
-    optionalDependencies:
-      '@swc/core': 1.16.22
-    transitivePeerDependencies:
-      - '@minify-html/node'
-      - '@swc/css'
-      - '@swc/html'
-      - '@types/node'
-      - clean-css
-      - cssnano
-      - csso
-      - esbuild
-      - html-minifier-terser
-      - lightningcss
-      - postcss
-      - prettier
-      - uglify-js
-      - webpack-cli
-
   '@nestjs/common@11.2.11(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)':
     dependencies:
       file-type: 21.3.4(supports-color@8.1.1)
@@ -5075,24 +5065,6 @@ snapshots:
 
   '@swc/core-win32-x64-msvc@1.16.22':
     optional: true
-
-  '@swc/core@1.16.22':
-    dependencies:
-      '@swc/counter': 0.1.3
-      '@swc/types': 0.1.28
-    optionalDependencies:
-      '@swc/core-darwin-arm64': 1.16.22
-      '@swc/core-darwin-x64': 1.16.22
-      '@swc/core-linux-arm-gnueabihf': 1.16.22
-      '@swc/core-linux-arm64-gnu': 1.16.22
-      '@swc/core-linux-arm64-musl': 1.16.22
-      '@swc/core-linux-ppc64-gnu': 1.16.22
-      '@swc/core-linux-s390x-gnu': 1.16.22
-      '@swc/core-linux-x64-gnu': 1.16.22
-      '@swc/core-linux-x64-musl': 1.16.22
-      '@swc/core-win32-arm64-msvc': 1.16.22
-      '@swc/core-win32-ia32-msvc': 1.16.22
-      '@swc/core-win32-x64-msvc': 1.16.22
 
   '@swc/core@1.16.22(@swc/helpers@0.5.23)':
     dependencies:
@@ -6313,23 +6285,6 @@ snapshots:
       typescript: 5.9.3
       webpack: 5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33)
 
-  fork-ts-checker-webpack-plugin@9.1.0(typescript@5.9.3)(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)):
-    dependencies:
-      '@babel/code-frame': 7.29.7
-      chalk: 4.1.2
-      chokidar: 4.0.3
-      cosmiconfig: 8.3.6(typescript@5.9.3)
-      deepmerge: 4.3.1
-      fs-extra: 10.1.0
-      memfs: 3.5.3
-      minimatch: 3.1.5
-      node-abort-controller: 3.1.1
-      schema-utils: 3.3.0
-      semver: 7.8.6
-      tapable: 2.3.4
-      typescript: 5.9.3
-      webpack: 5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)
-
   form-data@4.0.6:
     dependencies:
       asynckit: 0.4.0
@@ -6544,6 +6499,8 @@ snapshots:
     dependencies:
       prelude-ls: 1.2.1
       type-check: 0.4.0
+
+  libphonenumber-js@1.13.17: {}
 
   lightningcss-android-arm64@1.33.0:
     optional: true
@@ -7160,15 +7117,6 @@ snapshots:
     optionalDependencies:
       webpack: 5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33)
 
-  schema-utils@4.8.5(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)):
-    dependencies:
-      '@types/json-schema': 7.0.15
-      ajv: 8.20.0
-      ajv-formats: 3.0.1
-      ajv-keywords: 5.1.0(ajv@8.20.0)
-    optionalDependencies:
-      webpack: 5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)
-
   secure-json-parse@4.1.1: {}
 
   semver@7.8.6: {}
@@ -7386,18 +7334,6 @@ snapshots:
       lightningcss: 1.33.0
       postcss: 8.5.33
 
-  terser-webpack-plugin@5.6.1(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)):
-    dependencies:
-      '@jridgewell/trace-mapping': 0.3.31
-      jest-worker: 27.5.1
-      schema-utils: 4.8.5(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33))
-      terser: 5.51.4
-      webpack: 5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)
-    optionalDependencies:
-      '@swc/core': 1.16.22
-      lightningcss: 1.33.0
-      postcss: 8.5.33
-
   terser@5.51.4:
     dependencies:
       '@jridgewell/source-map': 0.3.11
@@ -7417,6 +7353,12 @@ snapshots:
     dependencies:
       fdir: 6.5.0(picomatch@4.0.7)
       picomatch: 4.0.7
+
+  tldts-core@7.5.5: {}
+
+  tldts@7.5.5:
+    dependencies:
+      tldts-core: 7.5.5
 
   toidentifier@1.0.1: {}
 
@@ -7517,24 +7459,6 @@ snapshots:
       - vite
       - webpack
 
-  unplugin-swc@2.0.0(@swc/core@1.16.22)(rolldown@1.2.19)(vite@8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4))(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)):
-    dependencies:
-      '@rollup/pluginutils': 5.5.1
-      '@swc/core': 1.16.22
-      load-tsconfig: 0.2.5
-      unplugin: 3.7.0(rolldown@1.2.19)(vite@8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4))(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33))
-    transitivePeerDependencies:
-      - '@farmfe/core'
-      - '@rsbuild/core'
-      - '@rspack/core'
-      - bun-types-no-globals
-      - esbuild
-      - rolldown
-      - rollup
-      - unloader
-      - vite
-      - webpack
-
   unplugin@3.7.0(rolldown@1.2.19)(vite@8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4))(webpack@5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33)):
     dependencies:
       '@jridgewell/remapping': 2.3.5
@@ -7545,17 +7469,6 @@ snapshots:
       rolldown: 1.2.19
       vite: 8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4)
       webpack: 5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33)
-
-  unplugin@3.7.0(rolldown@1.2.19)(vite@8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4))(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)):
-    dependencies:
-      '@jridgewell/remapping': 2.3.5
-      '@rolldown/pluginutils': 1.1.1
-      picomatch: 4.0.7
-      webpack-virtual-modules: 0.6.2
-    optionalDependencies:
-      rolldown: 1.2.19
-      vite: 8.3.8(@types/node@22.20.5)(jiti@2.7.0)(terser@5.51.4)
-      webpack: 5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)
 
   update-browserslist-db@1.4.0(browserslist@4.29.6):
     dependencies:
@@ -7647,46 +7560,6 @@ snapshots:
       schema-utils: 4.8.5(webpack@5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33))
       tapable: 2.3.4
       terser-webpack-plugin: 5.6.1(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33)(webpack@5.106.2(@swc/core@1.16.22(@swc/helpers@0.5.23))(lightningcss@1.33.0)(postcss@8.5.33))
-      watchpack: 2.6.4
-      webpack-sources: 3.7.1
-    transitivePeerDependencies:
-      - '@minify-html/node'
-      - '@swc/core'
-      - '@swc/css'
-      - '@swc/html'
-      - clean-css
-      - cssnano
-      - csso
-      - esbuild
-      - html-minifier-terser
-      - lightningcss
-      - postcss
-      - uglify-js
-
-  webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33):
-    dependencies:
-      '@types/eslint-scope': 3.7.7
-      '@types/estree': 1.0.10
-      '@types/json-schema': 7.0.15
-      '@webassemblyjs/ast': 1.14.1
-      '@webassemblyjs/wasm-edit': 1.14.1
-      '@webassemblyjs/wasm-parser': 1.14.1
-      acorn: 8.19.0
-      acorn-import-phases: 1.0.4(acorn@8.19.0)
-      browserslist: 4.29.6
-      chrome-trace-event: 1.0.4
-      enhanced-resolve: 5.27.0
-      es-module-lexer: 2.3.2
-      eslint-scope: 5.1.1
-      events: 3.3.0
-      glob-to-regexp: 0.4.1
-      graceful-fs: 4.2.12
-      loader-runner: 4.3.2
-      mime-db: 1.54.0
-      neo-async: 2.6.2
-      schema-utils: 4.8.5(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33))
-      tapable: 2.3.4
-      terser-webpack-plugin: 5.6.1(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33)(webpack@5.106.2(@swc/core@1.16.22)(lightningcss@1.33.0)(postcss@8.5.33))
       watchpack: 2.6.4
       webpack-sources: 3.7.1
     transitivePeerDependencies:

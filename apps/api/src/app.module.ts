@@ -10,7 +10,11 @@ import { STRICT_THROTTLE } from './auth/decorators';
 import { OriginGuard } from './auth/origin.guard';
 import { ConfigModule } from './config/config.module';
 import { ENV, type Env } from './config/env.token';
+import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
+import { ProjectsModule } from './projects/projects.module';
+import { QueueModule } from './queue/queue.module';
+import { RunsModule } from './runs/runs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { WorkspacesModule } from './workspaces/workspaces.module';
@@ -65,8 +69,12 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     }),
     PrismaModule,
     RedisModule,
+    QueueModule,
     AuthModule,
     WorkspacesModule,
+    ProjectsModule,
+    RunsModule,
+    CompaniesModule,
     HealthModule,
   ],
   providers: [

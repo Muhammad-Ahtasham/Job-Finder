@@ -51,7 +51,12 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle>Your workspaces</CardTitle>
-          <CardDescription>Company discovery arrives in the next phase.</CardDescription>
+          <CardDescription>
+            Create a search project to start discovering companies.{' '}
+            <a href="/projects" className="underline underline-offset-4">
+              Go to projects
+            </a>
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <ul className="flex flex-col gap-2" data-testid="workspace-list">

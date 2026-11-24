@@ -10,6 +10,7 @@ import Redis from 'ioredis';
 import { MAINTENANCE_JOBS, QUEUES } from '@jobfinder/contracts';
 import type { PrismaClient } from '@jobfinder/database';
 import { ENV, type Env } from '../config/env.token';
+import { DiscoveryReconciler } from '../discovery/reconciler';
 import { PRISMA, REDIS } from '../infrastructure.module';
 
 const HOUR_MS = 3_600_000;
@@ -29,6 +30,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     @Inject(REDIS) private readonly redis: Redis,
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(ENV) private readonly env: Env,
+    private readonly reconciler: DiscoveryReconciler,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -38,6 +40,23 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       { every: HOUR_MS },
       {
         name: MAINTENANCE_JOBS.PURGE_EXPIRED_SESSIONS,
+        opts: { removeOnComplete: 24, removeOnFail: 100 },
+      },
+    );
+
+    await this.queue.upsertJobScheduler(
+      MAINTENANCE_JOBS.RECONCILE_DISCOVERY,
+      { every: 30_000 },
+      {
+        name: MAINTENANCE_JOBS.RECONCILE_DISCOVERY,
+        opts: { removeOnComplete: 5, removeOnFail: 50 },
+      },
+    );
+    await this.queue.upsertJobScheduler(
+      MAINTENANCE_JOBS.PURGE_EXPIRED_SOURCE_DATA,
+      { every: HOUR_MS },
+      {
+        name: MAINTENANCE_JOBS.PURGE_EXPIRED_SOURCE_DATA,
         opts: { removeOnComplete: 24, removeOnFail: 100 },
       },
     );
@@ -58,9 +77,15 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     await this.queue?.close();
   }
 
-  async process(job: Job): Promise<{ removed: number } | undefined> {
+  async process(job: Job): Promise<object | undefined> {
     if (job.name === MAINTENANCE_JOBS.PURGE_EXPIRED_SESSIONS) {
       return { removed: await this.purgeExpiredSessions() };
+    }
+    if (job.name === MAINTENANCE_JOBS.RECONCILE_DISCOVERY) {
+      return this.reconciler.reconcile();
+    }
+    if (job.name === MAINTENANCE_JOBS.PURGE_EXPIRED_SOURCE_DATA) {
+      return { purged: await this.reconciler.purgeExpiredSourceData() };
     }
     this.logger.warn(`Unknown maintenance job "${job.name}"`);
     return undefined;

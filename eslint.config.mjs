@@ -49,6 +49,7 @@ export default defineConfig([
       [
         [
           '@jobfinder/database',
+          '@jobfinder/discovery',
           '@jobfinder/api',
           '@jobfinder/worker',
           '@nestjs/*',
@@ -62,7 +63,7 @@ export default defineConfig([
   },
   {
     // contracts + config are leaf packages.
-    files: ['packages/contracts/**/*.ts', 'packages/config/**/*.ts'],
+    files: ['packages/contracts/**/*.ts', 'packages/config/**/*.ts', 'packages/discovery/**/*.ts'],
     rules: restrict([
       PRISMA,
       [
