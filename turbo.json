@@ -1,6 +1,21 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "globalDependencies": [".env"],
+  "globalPassThroughEnv": [
+    "NODE_ENV",
+    "LOG_LEVEL",
+    "DATABASE_URL",
+    "REDIS_URL",
+    "WEB_ORIGIN",
+    "API_*",
+    "SESSION_*",
+    "AUTH_*",
+    "SWAGGER_ENABLED",
+    "WORKER_*",
+    "DISCOVERY_*",
+    "BRAVE_*",
+    "OVERPASS_*"
+  ],
   "tasks": {
     "generate": {
       "cache": false
