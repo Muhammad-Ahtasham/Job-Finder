@@ -7,3 +7,4 @@ export * from './enrichment';
 export * from './jobs';
 
 export * from './intelligence';
+export * from './directory';

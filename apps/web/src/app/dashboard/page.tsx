@@ -1,84 +1,143 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchMe, logout } from '@/lib/api';
+import Link from 'next/link';
+import { useQuery } from '@tanstack/react-query';
+import { RunStatusBadge } from '@/components/badges';
+import { AuthedPage } from '@/components/app-shell';
+import { EmptyState, ErrorState, PageHeader, StatCard } from '@/components/states';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getDashboardSummary } from '@/lib/api';
+import { timeAgo } from '@/lib/format';
 
-export default function DashboardPage() {
-  const router = useRouter();
-  const queryClient = useQueryClient();
-  const { data: me, isPending, isError } = useQuery({ queryKey: ['me'], queryFn: fetchMe });
-
-  // The API is the authority; this redirect is only UX for an expired session.
-  useEffect(() => {
-    if (!isPending && !me && !isError) router.replace('/login');
-  }, [isPending, me, isError, router]);
-
-  const signOut = useMutation({
-    mutationFn: logout,
-    onSettled: () => {
-      queryClient.clear();
-      router.replace('/login');
-    },
+function Dashboard() {
+  const summary = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: getDashboardSummary,
+    // Discovery runs change these numbers; keep them fresh while the page is open.
+    refetchInterval: 15_000,
   });
-
-  if (isError) {
-    return (
-      <main className="p-8 text-sm text-destructive">Could not reach the API. Is it running?</main>
-    );
-  }
-  if (isPending || !me) {
-    return <main className="p-8 text-sm text-muted-foreground">Loading…</main>;
-  }
+  const s = summary.data;
+  const loading = summary.isPending;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 p-8">
-      <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
-            Signed in as {me.user.name} ({me.user.email})
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => signOut.mutate()} disabled={signOut.isPending}>
-          Sign out
-        </Button>
-      </header>
+    <div className="flex flex-col gap-6">
+      <PageHeader
+        title="Dashboard"
+        description="Everything discovered in this workspace."
+        actions={
+          <Button asChild>
+            <Link href="/projects">Search projects</Link>
+          </Button>
+        }
+      />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Your workspaces</CardTitle>
-          <CardDescription>
-            Create a search project to start discovering companies.{' '}
-            <a href="/projects" className="underline underline-offset-4">
-              Go to projects
-            </a>
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="flex flex-col gap-2" data-testid="workspace-list">
-            {me.workspaces.map((workspace) => (
-              <li
-                key={workspace.id}
-                className="flex items-center justify-between rounded-md border px-3 py-2 text-sm"
-              >
-                <span>
-                  {workspace.name}
-                  {workspace.isPersonal && (
-                    <span className="ml-2 text-xs text-muted-foreground">personal</span>
-                  )}
-                </span>
-                <span className="rounded bg-secondary px-2 py-0.5 text-xs font-medium">
-                  {workspace.role}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </CardContent>
-      </Card>
-    </main>
+      {summary.error ? (
+        <Card>
+          <ErrorState error={summary.error} onRetry={() => void summary.refetch()} />
+        </Card>
+      ) : (
+        <>
+          <section aria-label="Key figures" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard
+              label="Companies discovered"
+              value={s?.companies.total}
+              loading={loading}
+              href="/companies"
+            />
+            <StatCard
+              label="Verified websites"
+              value={s?.companies.verifiedWebsites}
+              loading={loading}
+              href="/companies?websiteStatus=VERIFIED"
+            />
+            <StatCard
+              label="With a careers page"
+              value={s?.companies.withCareersPage}
+              loading={loading}
+              href="/companies?hasCareersPage=true"
+            />
+            <StatCard
+              label="With a published HR email"
+              value={s?.companies.withHrEmail}
+              loading={loading}
+              href="/companies?hasHrEmail=true"
+              hint="Published on the verified website; not a mailbox check."
+            />
+            <StatCard
+              label="Currently hiring"
+              value={s?.companies.hiring}
+              loading={loading}
+              href="/companies?hiring=true"
+            />
+            <StatCard
+              label="Active job openings"
+              value={s?.jobs.open}
+              loading={loading}
+              href="/jobs"
+              hint={s ? `${s.jobs.matched.toLocaleString('en')} matched to a project` : undefined}
+            />
+          </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Recent discovery activity</CardTitle>
+              <CardDescription>The latest runs across all search projects.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {loading ? (
+                <div className="flex flex-col gap-3" aria-busy="true">
+                  {Array.from({ length: 4 }, (_, i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : s && s.recentRuns.length > 0 ? (
+                <ul className="divide-y" data-testid="recent-runs">
+                  {s.recentRuns.map((run) => (
+                    <li
+                      key={run.id}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3 text-sm"
+                    >
+                      <Link
+                        href={`/projects/${run.projectId}`}
+                        className="min-w-40 flex-1 font-medium hover:underline"
+                      >
+                        {run.projectName}
+                      </Link>
+                      <RunStatusBadge status={run.status} />
+                      <span className="text-muted-foreground tabular-nums">
+                        {run.candidatesFound} found · {run.companiesCreated} new ·{' '}
+                        {run.companiesMatched} matched
+                      </span>
+                      <time
+                        className="w-28 text-right text-xs text-muted-foreground"
+                        dateTime={run.createdAt}
+                      >
+                        {timeAgo(run.finishedAt ?? run.createdAt)}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  title="No discovery runs yet"
+                  description="Create a search project and start a run to find companies."
+                  action={
+                    <Button asChild size="sm">
+                      <Link href="/projects">Create a project</Link>
+                    </Button>
+                  }
+                />
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+    </div>
   );
+}
+
+export default function DashboardPage() {
+  return <AuthedPage>{() => <Dashboard />}</AuthedPage>;
 }

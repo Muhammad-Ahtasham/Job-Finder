@@ -1,5 +1,21 @@
 import {
+  companyContactsResponseSchema,
   companyDetailSchema,
+  companyDirectoryResponseSchema,
+  companyReviewListResponseSchema,
+  companyReviewSchema,
+  companySourcesResponseSchema,
+  dashboardSummarySchema,
+  directoryFacetsSchema,
+  enrichResponseSchema,
+  jobDetailSchema,
+  jobDirectoryResponseSchema,
+  jobHistoryResponseSchema,
+  jobRefreshResponseSchema,
+  jobSourcesResponseSchema,
+  matchListResponseSchema,
+  matchPreferencesSchema,
+  type UpdateMatchPreferencesRequest,
   createProjectRequestSchema,
   discoveryResultListResponseSchema,
   matchReviewSchema,
@@ -16,7 +32,10 @@ import {
   type MeResponse,
   type RegisterRequest,
 } from '@jobfinder/contracts';
-import type { ZodType } from 'zod';
+import { z, type ZodType } from 'zod';
+import { getActiveWorkspaceId } from '@/lib/workspace';
+
+const matchRefreshSchema = z.object({ queued: z.boolean() });
 
 export class ApiError extends Error {
   constructor(
@@ -33,10 +52,16 @@ export class ApiError extends Error {
  * is first-party. This module only transports data; all rules live in the API.
  */
 async function request(path: string, init: RequestInit = {}): Promise<Response> {
+  // Every data call is scoped to the active workspace (default: the personal one).
+  const workspaceId = getActiveWorkspaceId();
   const response = await fetch(path, {
     ...init,
     credentials: 'same-origin',
-    headers: { 'content-type': 'application/json', ...init.headers },
+    headers: {
+      'content-type': 'application/json',
+      ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+      ...init.headers,
+    },
   });
   if (!response.ok) {
     const problem = problemSchema.safeParse(await response.json().catch(() => null));
@@ -115,5 +140,65 @@ export const mergeReview = (id: string) =>
 
 export const dismissReview = (id: string) =>
   json(`/api/v1/reviews/${id}/dismiss`, matchReviewSchema, post());
+
+// ---------------------------------------------------------------- directory (server-side tables)
+export type Params = Record<string, string | number | boolean | undefined | null>;
+
+/** Query string without empty values. */
+export function qs(params: Params): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
+  }
+  const text = search.toString();
+  return text ? `?${text}` : '';
+}
+
+export const getDashboardSummary = () => json('/api/v1/dashboard/summary', dashboardSummarySchema);
+export const getFacets = () => json('/api/v1/directory/facets', directoryFacetsSchema);
+
+export const listCompanyDirectory = (query: Params) =>
+  json(`/api/v1/directory/companies${qs(query)}`, companyDirectoryResponseSchema);
+
+export const listJobDirectory = (query: Params) =>
+  json(`/api/v1/directory/jobs${qs(query)}`, jobDirectoryResponseSchema);
+
+/** Same-origin download link: the session cookie and workspace come with the browser request. */
+export const exportUrl = (dataset: 'companies' | 'jobs', query: Params) =>
+  `/api/v1/exports/${dataset}.csv${qs(query)}`;
+
+// ---------------------------------------------------------------- company profile
+export const getCompanySources = (id: string) =>
+  json(`/api/v1/companies/${id}/sources`, companySourcesResponseSchema);
+export const getCompanyContacts = (id: string) =>
+  json(`/api/v1/companies/${id}/contacts`, companyContactsResponseSchema);
+export const getCompanyJobSources = (id: string) =>
+  json(`/api/v1/companies/${id}/job-sources`, jobSourcesResponseSchema);
+export const listWebsiteReviews = (id: string) =>
+  json(`/api/v1/companies/${id}/website-reviews`, companyReviewListResponseSchema);
+export const approveWebsiteReview = (id: string) =>
+  json(`/api/v1/website-reviews/${id}/approve`, companyReviewSchema, post());
+export const rejectWebsiteReview = (id: string) =>
+  json(`/api/v1/website-reviews/${id}/reject`, companyReviewSchema, post());
+export const enrichCompany = (id: string) =>
+  json(`/api/v1/companies/${id}/enrich`, enrichResponseSchema, post());
+export const refreshCompanyJobs = (id: string) =>
+  json(`/api/v1/companies/${id}/jobs/refresh`, jobRefreshResponseSchema, post());
+
+// ---------------------------------------------------------------- jobs and matches
+export const getJob = (id: string) => json(`/api/v1/jobs/${id}`, jobDetailSchema);
+export const getJobHistory = (id: string) =>
+  json(`/api/v1/jobs/${id}/history?limit=100`, jobHistoryResponseSchema);
+export const listMatches = (projectId: string, query: Params) =>
+  json(`/api/v1/projects/${projectId}/matches${qs(query)}`, matchListResponseSchema);
+export const getMatchPreferences = (projectId: string) =>
+  json(`/api/v1/projects/${projectId}/matching-preferences`, matchPreferencesSchema);
+export const updateMatchPreferences = (projectId: string, input: UpdateMatchPreferencesRequest) =>
+  json(`/api/v1/projects/${projectId}/matching-preferences`, matchPreferencesSchema, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  });
+export const refreshMatches = (projectId: string) =>
+  json(`/api/v1/projects/${projectId}/matches/refresh`, matchRefreshSchema, post());
 
 export { createProjectRequestSchema };
