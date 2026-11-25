@@ -154,6 +154,15 @@ export const workerEnvSchema = baseEnvSchema
     /** Optional. Enables AI second opinions for ambiguous pages/contacts only. */
     ANTHROPIC_API_KEY: optionalString(z.string().trim().min(1)),
     ENRICHMENT_AI_MODEL: z.string().trim().min(1).default('claude-haiku-5-5'),
+
+    // ---- Career pages and job providers (see docs/adr/0005-job-discovery.md) ----
+    JOBS_CONCURRENCY: positiveInt('JOBS_CONCURRENCY').max(20).default(2),
+    /** Minimum spacing between requests to one ATS API host, across all workers. */
+    JOBS_API_MIN_INTERVAL_MS: positiveInt('JOBS_API_MIN_INTERVAL_MS').default(1000),
+    JOBS_MAX_CAREER_FETCHES: positiveInt('JOBS_MAX_CAREER_FETCHES').max(20).default(6),
+    JOBS_MAX_ATTEMPTS: positiveInt('JOBS_MAX_ATTEMPTS').max(10).default(3),
+    JOBS_RETRY_BASE_MS: positiveInt('JOBS_RETRY_BASE_MS').default(10_000),
+    JOBS_RECONCILE_STALE_SECONDS: positiveInt('JOBS_RECONCILE_STALE_SECONDS').default(120),
   })
   .transform((env) => ({
     ...env,

@@ -202,6 +202,35 @@ export class ReviewsService {
           });
       }
 
+      // --- job sources (Phase 4): move what the survivor lacks; a duplicate source is dropped
+      //     together with its jobs (the survivor's own copy of that board is kept)
+      const [survivorSources, loserSources] = await Promise.all([
+        tx.jobSource.findMany({
+          where: { companyId: survivor.id },
+          select: { providerId: true, boardKey: true },
+        }),
+        tx.jobSource.findMany({ where: { companyId: loser.id } }),
+      ]);
+      const sourceKeys = new Set(survivorSources.map((x) => `${x.providerId}|${x.boardKey}`));
+      for (const jobSource of loserSources) {
+        if (sourceKeys.has(`${jobSource.providerId}|${jobSource.boardKey}`)) {
+          await tx.jobSource.delete({ where: { id: jobSource.id } });
+        } else {
+          await tx.jobSource.update({
+            where: { id: jobSource.id },
+            data: { companyId: survivor.id },
+          });
+          await tx.job.updateMany({
+            where: { sourceId: jobSource.id },
+            data: { companyId: survivor.id },
+          });
+          await tx.jobCheck.updateMany({
+            where: { sourceId: jobSource.id },
+            data: { companyId: survivor.id },
+          });
+        }
+      }
+
       // --- the survivor keeps its own values; gaps are filled from the merged company
       await tx.company.update({
         where: { id: survivor.id },

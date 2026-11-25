@@ -28,3 +28,14 @@ shown (the API returns it per provider in run progress) and consider share-alike
 | LinkedIn                        | Company URL only, read from the company's own website                   | **Never fetched** (User Agreement §8.2); URLs are recorded as UNVERIFIED/“linked from the site”                                                     |
 | Brave Search (candidate finder) | Propose websites for companies that have none                           | Same gate as discovery: needs `BRAVE_SEARCH_STORAGE_RIGHTS=true`. Each proposal is verified before use. Mock-tested only                            |
 | Anthropic API (optional)        | Second opinion on ambiguous page/contact classification                 | Off unless `ANTHROPIC_API_KEY` is set. Sends short page snippets (≤ 2 000 chars) — do not enable if site content must not leave your infrastructure |
+
+## Phase 4 additions (job providers)
+
+| Provider                     | Endpoint (read only)                                                       | Storage / limits                                                                | Status                                                                               |
+| ---------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| Greenhouse Job Board API     | `GET boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true`         | Public GET, unauthenticated; "may be rate limited"; no storage terms stated     | Implemented; verified against a live board 2026-11-25. Application POST never called |
+| Lever Postings API           | `GET api.lever.co/v0/postings/{site}?mode=json&skip=&limit=` (EU host too) | Published postings are public; Lever notes they may be scraped by third parties | Implemented; verified against `leverdemo` 2026-11-25. Application POST never called  |
+| Ashby Public Job Posting API | `GET api.ashbyhq.com/posting-api/job-board/{name}`                         | Public GET; compensation (`includeCompensation`) not requested                  | Implemented; verified against a live board 2026-11-25                                |
+| Other ATS (Workable, …)      | —                                                                          | —                                                                               | Recognised and recorded as UNSUPPORTED; never fetched                                |
+
+Requests are spaced ≥ 1 s per vendor domain across all workers (`JOBS_API_MIN_INTERVAL_MS`). Re-read the terms before enabling in production.
