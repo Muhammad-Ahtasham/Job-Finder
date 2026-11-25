@@ -5,32 +5,41 @@ import {
   BraveWebsiteCandidateFinder,
   CrawlerWebsiteEnrichmentProvider,
   PoliteFetcher,
+  type PageFetcher,
 } from '@jobfinder/enrichment';
 import { ENV, type Env } from '../config/env.token';
 import { REDIS } from '../infrastructure.module';
 import { EnrichmentProcessor } from './enrichment-processor';
 import { EnrichmentQueueService } from './enrichment-queue.service';
-import { ENRICHMENT_PROVIDER, WEBSITE_CANDIDATE_FINDER } from './enrichment.tokens';
+import { ENRICHMENT_PROVIDER, PAGE_FETCHER, WEBSITE_CANDIDATE_FINDER } from './enrichment.tokens';
 import { RedisDomainRateLimiter } from './redis-rate-limiter';
 
 @Module({
   providers: [
     {
-      provide: ENRICHMENT_PROVIDER,
+      provide: PAGE_FETCHER,
       inject: [ENV, REDIS],
-      useFactory: (env: Env, redis: Redis) => {
-        const logger = new Logger('Enrichment');
+      useFactory: (env: Env, redis: Redis): PageFetcher => {
         // Sites see who we are and how to reach us; this is also what robots.txt rules key on.
         const contact = env.DISCOVERY_CONTACT ?? 'contact not configured';
         if (!env.DISCOVERY_CONTACT)
-          logger.warn('DISCOVERY_CONTACT is not set: crawler User-Agent has no contact');
-        const fetcher = new PoliteFetcher({
+          new Logger('Enrichment').warn(
+            'DISCOVERY_CONTACT is not set: crawler User-Agent has no contact',
+          );
+        return new PoliteFetcher({
           userAgent: `JobFinderBot/0.1 (+${contact})`,
           robotsToken: 'JobFinderBot',
           rateLimiter: new RedisDomainRateLimiter(redis, env.ENRICHMENT_DOMAIN_MIN_INTERVAL_MS),
           timeoutMs: env.ENRICHMENT_REQUEST_TIMEOUT_MS,
           maxBytes: env.ENRICHMENT_MAX_RESPONSE_BYTES,
         });
+      },
+    },
+    {
+      provide: ENRICHMENT_PROVIDER,
+      inject: [ENV, PAGE_FETCHER],
+      useFactory: (env: Env, fetcher: PageFetcher) => {
+        const logger = new Logger('Enrichment');
         const ai = env.ANTHROPIC_API_KEY
           ? new AnthropicAiAssistant({
               apiKey: env.ANTHROPIC_API_KEY,
@@ -59,6 +68,6 @@ import { RedisDomainRateLimiter } from './redis-rate-limiter';
     EnrichmentProcessor,
     EnrichmentQueueService,
   ],
-  exports: [EnrichmentQueueService, EnrichmentProcessor],
+  exports: [EnrichmentQueueService, EnrichmentProcessor, PAGE_FETCHER],
 })
 export class EnrichmentModule {}

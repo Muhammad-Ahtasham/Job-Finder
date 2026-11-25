@@ -1,7 +1,7 @@
 # Company Discovery & Job Intelligence Platform
 
-Phases 1–3: monorepo, auth, workspaces, search projects, company discovery and **company website enrichment**
-(official-site verification, careers/contact pages, published e-mails). Job extraction is not implemented yet. Architecture: [`docs/ARCHITECTURE_PLAN.md`](docs/ARCHITECTURE_PLAN.md) · decisions: [`docs/adr`](docs/adr).
+Phases 1–4: monorepo, auth, workspaces, search projects, company discovery, company website enrichment and
+**career page discovery with job provider integrations** (Greenhouse, Lever, Ashby + generic career pages). Architecture: [`docs/ARCHITECTURE_PLAN.md`](docs/ARCHITECTURE_PLAN.md) · decisions: [`docs/adr`](docs/adr).
 
 ## Prerequisites
 
@@ -47,3 +47,11 @@ Only e-mails literally published on the verified site are stored — never guess
 official site", not "mailbox exists". The crawler is SSRF-hardened, obeys robots.txt and rate-limits per domain; set
 `DISCOVERY_CONTACT` so its User-Agent identifies you. `ANTHROPIC_API_KEY` (optional) enables AI only for ambiguous
 cases. Design and threat model: [`docs/adr/0004-website-enrichment.md`](docs/adr/0004-website-enrichment.md).
+
+## Jobs (Phase 4)
+
+`POST /api/v1/companies/:id/jobs/refresh` finds a company's career pages and ATS, then reads its published jobs;
+`GET /companies/:id/jobs` lists them (original application URL preserved) and `GET /companies/:id/job-sources` shows
+every source with its recent checks. A failed or inconclusive check is **never** reported as "no openings"
+(`vacancyKnowledge` says whether any source has actually answered). Nothing is ever applied for. Design:
+[`docs/adr/0005-job-discovery.md`](docs/adr/0005-job-discovery.md).

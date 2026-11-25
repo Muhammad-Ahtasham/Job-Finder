@@ -4,3 +4,4 @@ export * from './health';
 export * from './queues';
 export * from './discovery';
 export * from './enrichment';
+export * from './jobs';

@@ -391,6 +391,9 @@ importers:
       '@jobfinder/enrichment':
         specifier: workspace:*
         version: link:../../packages/enrichment
+      '@jobfinder/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@nestjs/common':
         specifier: ^11.2.11
         version: 11.2.11(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
@@ -488,6 +491,24 @@ importers:
       '@jobfinder/discovery':
         specifier: workspace:*
         version: link:../discovery
+      cheerio:
+        specifier: ^1.1.2
+        version: 1.2.0
+      tldts:
+        specifier: ^7.5.5
+        version: 7.5.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  packages/jobs:
+    dependencies:
+      '@jobfinder/discovery':
+        specifier: workspace:*
+        version: link:../discovery
+      '@jobfinder/enrichment':
+        specifier: workspace:*
+        version: link:../enrichment
       cheerio:
         specifier: ^1.1.2
         version: 1.2.0

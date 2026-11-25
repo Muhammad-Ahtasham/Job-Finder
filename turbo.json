@@ -16,6 +16,7 @@
     "BRAVE_*",
     "OVERPASS_*",
     "ENRICHMENT_*",
+    "JOBS_*",
     "ANTHROPIC_*"
   ],
   "tasks": {

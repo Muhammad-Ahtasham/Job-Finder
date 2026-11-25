@@ -36,6 +36,7 @@ model User {
   resolvedReviews        MatchReview[]     @relation("ReviewResolver")
   requestedEnrichments   ExtractionRun[]   @relation("ExtractionRequester")
   resolvedCompanyReviews CompanyReview[]   @relation("CompanyReviewResolver")
+  requestedJobRuns       JobRun[]          @relation("JobRunRequester")
 
   @@map("users")
 }
@@ -60,6 +61,10 @@ model Workspace {
   companyPages    CompanyPage[]
   companyContacts CompanyContact[]
   companyReviews  CompanyReview[]
+  jobRuns         JobRun[]
+  jobSources      JobSource[]
+  jobs            Job[]
+  jobChecks       JobCheck[]
 
   @@map("workspaces")
 }
@@ -327,6 +332,9 @@ model Company {
   contacts           CompanyContact[]
   extractionRuns     ExtractionRun[]
   companyReviews     CompanyReview[]
+  jobRuns            JobRun[]
+  jobSources         JobSource[]
+  jobs               Job[]
 
   @@index([workspaceId, status, id])
   @@index([workspaceId, nameKey])
@@ -679,4 +687,189 @@ model CompanyReview {
   @@unique([companyId, kind, subjectKey])
   @@index([workspaceId, status])
   @@map("company_reviews")
+}
+
+// ============================================================================
+// Phase 4: career page discovery and job provider integrations
+//
+// A JobSource is one place a company publishes jobs (a Greenhouse/Lever/Ashby board or a generic
+// career page). Every fetch of a source is recorded as a JobCheck whose outcome distinguishes
+// "found jobs" from "the source says there are none" from "we could not tell" — a failed or
+// inconclusive check never closes a job and never means zero vacancies.
+// ============================================================================
+
+enum JobSourceStatus {
+  ACTIVE
+  /// An ATS we recognise but have no adapter for: recorded, never scraped.
+  UNSUPPORTED
+  DISABLED
+}
+
+enum JobCheckOutcome {
+  /// Jobs were found.
+  JOBS
+  /// The source positively reported zero openings.
+  NO_OPENINGS
+  /// A page was read but nothing could be extracted: unknown, NOT zero.
+  INCONCLUSIVE
+  /// The request failed: unknown, NOT zero.
+  FAILED
+}
+
+enum JobStatus {
+  OPEN
+  CLOSED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+  TEMPORARY
+  OTHER
+  UNKNOWN
+}
+
+enum WorkplaceType {
+  ONSITE
+  REMOTE
+  HYBRID
+  UNKNOWN
+}
+
+/// One job-discovery attempt for one company (find career pages → detect ATS → fetch jobs).
+model JobRun {
+  id               String           @id @default(uuid(7)) @db.Uuid
+  workspaceId      String           @map("workspace_id") @db.Uuid
+  companyId        String           @map("company_id") @db.Uuid
+  requestedById    String?          @map("requested_by_id") @db.Uuid
+  status           ExtractionStatus @default(QUEUED)
+  /// = companyId while QUEUED/RUNNING, NULL once finished: one active run per company (see ExtractionRun).
+  activeKey        String?          @unique @map("active_key") @db.Uuid
+  attempts         Int              @default(0)
+  careerPagesFound Int              @default(0) @map("career_pages_found")
+  sourcesChecked   Int              @default(0) @map("sources_checked")
+  jobsFound        Int              @default(0) @map("jobs_found")
+  stats            Json             @default("{}")
+  errorCode        String?          @map("error_code")
+  errorMessage     String?          @map("error_message")
+  errors           Json             @default("[]")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  startedAt        DateTime?        @map("started_at")
+  finishedAt       DateTime?        @map("finished_at")
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestedBy User?     @relation("JobRunRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([status, createdAt])
+  @@map("job_runs")
+}
+
+model JobSource {
+  id                  String           @id @default(uuid(7)) @db.Uuid
+  workspaceId         String           @map("workspace_id") @db.Uuid
+  companyId           String           @map("company_id") @db.Uuid
+  /// greenhouse | lever | ashby | generic-html, or the name of an unsupported ATS (workable, ...).
+  providerId          String           @map("provider_id")
+  /// Greenhouse board token / Lever site / Ashby board name / canonical page URL (generic).
+  boardKey            String           @map("board_key")
+  boardUrl            String           @map("board_url")
+  region              String?
+  status              JobSourceStatus  @default(ACTIVE)
+  /// The company page the source was discovered from, and how it was recognised.
+  discoveredFromUrl   String?          @map("discovered_from_url")
+  discoveryConfidence Float?           @map("discovery_confidence")
+  discoveryEvidence   String?          @map("discovery_evidence")
+  lastCheckedAt       DateTime?        @map("last_checked_at")
+  lastSuccessAt       DateTime?        @map("last_success_at")
+  lastOutcome         JobCheckOutcome? @map("last_outcome")
+  consecutiveFailures Int              @default(0) @map("consecutive_failures")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobs      Job[]
+  checks    JobCheck[]
+
+  @@unique([companyId, providerId, boardKey])
+  @@index([workspaceId])
+  @@map("job_sources")
+}
+
+model Job {
+  id             String         @id @default(uuid(7)) @db.Uuid
+  workspaceId    String         @map("workspace_id") @db.Uuid
+  companyId      String         @map("company_id") @db.Uuid
+  sourceId       String         @map("source_id") @db.Uuid
+  /// The provider's own job id (generic pages: hash of the job URL). UNIQUE per source = no duplicate imports.
+  externalId     String         @map("external_id")
+  /// sha1(title|primary location): detects the same vacancy listed by two sources.
+  fingerprint    String
+  title          String
+  /// Plain text only; provider HTML is never stored.
+  description    String?
+  location       String?
+  locations      String[]       @default([])
+  department     String?
+  employmentType EmploymentType @default(UNKNOWN) @map("employment_type")
+  workplaceType  WorkplaceType  @default(UNKNOWN) @map("workplace_type")
+  /// Exactly as the provider published it. This system never submits applications.
+  applicationUrl String?        @map("application_url")
+  sourceUrl      String         @map("source_url")
+  publishedAt    DateTime?      @map("published_at")
+  /// API | JSON_LD | MICRODATA | HTML | AI
+  extraction     String
+  status         JobStatus      @default(OPEN)
+  firstSeenAt    DateTime       @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime       @default(now()) @map("last_seen_at")
+  closedAt       DateTime?      @map("closed_at")
+  lastCheckId    String?        @map("last_check_id") @db.Uuid
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  source    JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, externalId])
+  @@index([companyId, status])
+  @@index([companyId, fingerprint])
+  @@index([workspaceId, status, firstSeenAt])
+  @@map("jobs")
+}
+
+/// One fetch of one source. Failures are first-class: a FAILED/INCONCLUSIVE check is evidence of
+/// "we do not know", never of "no vacancies".
+model JobCheck {
+  id                String          @id @default(uuid(7)) @db.Uuid
+  workspaceId       String          @map("workspace_id") @db.Uuid
+  companyId         String          @map("company_id") @db.Uuid
+  sourceId          String          @map("source_id") @db.Uuid
+  runId             String?         @map("run_id") @db.Uuid
+  outcome           JobCheckOutcome
+  /// The official API answered completely, so jobs it no longer lists were closed.
+  authoritative     Boolean         @default(false)
+  jobsFound         Int             @default(0) @map("jobs_found")
+  jobsCreated       Int             @default(0) @map("jobs_created")
+  jobsUpdated       Int             @default(0) @map("jobs_updated")
+  jobsClosed        Int             @default(0) @map("jobs_closed")
+  duplicatesSkipped Int             @default(0) @map("duplicates_skipped")
+  pagesFetched      Int             @default(0) @map("pages_fetched")
+  errorCode         String?         @map("error_code")
+  errorMessage      String?         @map("error_message")
+  retryable         Boolean?
+  httpStatus        Int?            @map("http_status")
+  /// NO_OPENINGS / INCONCLUSIVE: what the source said (or why nothing could be read).
+  evidence          String?
+  startedAt         DateTime        @default(now()) @map("started_at")
+  finishedAt        DateTime?       @map("finished_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  source    JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, startedAt])
+  @@index([companyId, startedAt])
+  @@map("job_checks")
 }

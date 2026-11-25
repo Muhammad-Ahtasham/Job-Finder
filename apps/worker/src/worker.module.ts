@@ -4,6 +4,7 @@ import { LoggerModule } from 'nestjs-pino';
 import { loadWorkerEnv } from '@jobfinder/config';
 import { DiscoveryModule } from './discovery/discovery.module';
 import { EnrichmentModule } from './enrichment/enrichment.module';
+import { JobsModule } from './jobs/jobs.module';
 import { HeartbeatService } from './heartbeat/heartbeat.service';
 import { InfrastructureModule } from './infrastructure.module';
 import { MaintenanceService } from './maintenance/maintenance.service';
@@ -25,6 +26,7 @@ const env = loadWorkerEnv();
     InfrastructureModule,
     DiscoveryModule,
     EnrichmentModule,
+    JobsModule,
   ],
   providers: [HeartbeatService, MaintenanceService],
 })

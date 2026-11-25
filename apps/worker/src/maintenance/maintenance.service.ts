@@ -12,6 +12,7 @@ import type { PrismaClient } from '@jobfinder/database';
 import { ENV, type Env } from '../config/env.token';
 import { DiscoveryReconciler } from '../discovery/reconciler';
 import { EnrichmentQueueService } from '../enrichment/enrichment-queue.service';
+import { JobQueueService } from '../jobs/job-queue.service';
 import { PRISMA, REDIS } from '../infrastructure.module';
 
 const HOUR_MS = 3_600_000;
@@ -33,6 +34,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     @Inject(ENV) private readonly env: Env,
     private readonly reconciler: DiscoveryReconciler,
     private readonly enrichment: EnrichmentQueueService,
+    private readonly jobs: JobQueueService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -59,6 +61,14 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       { every: 30_000 },
       {
         name: MAINTENANCE_JOBS.RECONCILE_ENRICHMENT,
+        opts: { removeOnComplete: 5, removeOnFail: 50 },
+      },
+    );
+    await this.queue.upsertJobScheduler(
+      MAINTENANCE_JOBS.RECONCILE_JOBS,
+      { every: 30_000 },
+      {
+        name: MAINTENANCE_JOBS.RECONCILE_JOBS,
         opts: { removeOnComplete: 5, removeOnFail: 50 },
       },
     );
@@ -93,6 +103,9 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_DISCOVERY) {
       return this.reconciler.reconcile();
+    }
+    if (job.name === MAINTENANCE_JOBS.RECONCILE_JOBS) {
+      return this.jobs.reconcile();
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_ENRICHMENT) {
       return this.enrichment.reconcile();
