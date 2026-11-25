@@ -11,6 +11,7 @@ import { MAINTENANCE_JOBS, QUEUES } from '@jobfinder/contracts';
 import type { PrismaClient } from '@jobfinder/database';
 import { ENV, type Env } from '../config/env.token';
 import { DiscoveryReconciler } from '../discovery/reconciler';
+import { EnrichmentQueueService } from '../enrichment/enrichment-queue.service';
 import { PRISMA, REDIS } from '../infrastructure.module';
 
 const HOUR_MS = 3_600_000;
@@ -31,6 +32,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(ENV) private readonly env: Env,
     private readonly reconciler: DiscoveryReconciler,
+    private readonly enrichment: EnrichmentQueueService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -49,6 +51,14 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       { every: 30_000 },
       {
         name: MAINTENANCE_JOBS.RECONCILE_DISCOVERY,
+        opts: { removeOnComplete: 5, removeOnFail: 50 },
+      },
+    );
+    await this.queue.upsertJobScheduler(
+      MAINTENANCE_JOBS.RECONCILE_ENRICHMENT,
+      { every: 30_000 },
+      {
+        name: MAINTENANCE_JOBS.RECONCILE_ENRICHMENT,
         opts: { removeOnComplete: 5, removeOnFail: 50 },
       },
     );
@@ -83,6 +93,9 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_DISCOVERY) {
       return this.reconciler.reconcile();
+    }
+    if (job.name === MAINTENANCE_JOBS.RECONCILE_ENRICHMENT) {
+      return this.enrichment.reconcile();
     }
     if (job.name === MAINTENANCE_JOBS.PURGE_EXPIRED_SOURCE_DATA) {
       return { purged: await this.reconciler.purgeExpiredSourceData() };

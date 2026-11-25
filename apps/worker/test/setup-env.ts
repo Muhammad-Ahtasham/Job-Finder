@@ -10,3 +10,7 @@ process.env.WORKER_HEARTBEAT_INTERVAL_MS = '1000';
 process.env.DISCOVERY_RETRY_BASE_MS = '40';
 process.env.DISCOVERY_MAX_ATTEMPTS = '3';
 process.env.DISCOVERY_RECONCILE_STALE_SECONDS = '1';
+// Fast, deterministic enrichment tests.
+process.env.ENRICHMENT_MAX_ATTEMPTS = '2';
+process.env.ENRICHMENT_RETRY_BASE_MS = '40';
+process.env.ENRICHMENT_RECONCILE_STALE_SECONDS = '1';

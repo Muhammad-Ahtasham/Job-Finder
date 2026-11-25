@@ -6,7 +6,7 @@ export {
   countryNameOf,
   isValidCountryCode,
 } from './normalization/company-normalization.service';
-export { foldText } from './normalization/text';
+export { foldText, tokenize, stripLegalSuffixes, removeGenericWords } from './normalization/text';
 export { normalizeWebsite, isAggregatorDomain } from './normalization/website';
 export {
   DefaultCompanyDeduplicationService,

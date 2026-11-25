@@ -156,12 +156,65 @@ export class ReviewsService {
         }
       }
 
+      // --- website enrichment data (Phase 3): move what the survivor lacks, drop duplicates
+      const [survivorContacts, loserContacts] = await Promise.all([
+        tx.companyContact.findMany({
+          where: { companyId: survivor.id },
+          select: { kind: true, value: true },
+        }),
+        tx.companyContact.findMany({ where: { companyId: loser.id } }),
+      ]);
+      const contactKeys = new Set(survivorContacts.map((c) => `${c.kind}|${c.value}`));
+      for (const contact of loserContacts) {
+        if (contactKeys.has(`${contact.kind}|${contact.value}`))
+          await tx.companyContact.delete({ where: { id: contact.id } });
+        else
+          await tx.companyContact.update({
+            where: { id: contact.id },
+            data: { companyId: survivor.id },
+          });
+      }
+      const [survivorPages, loserPages] = await Promise.all([
+        tx.companyPage.findMany({ where: { companyId: survivor.id }, select: { url: true } }),
+        tx.companyPage.findMany({ where: { companyId: loser.id } }),
+      ]);
+      const pageUrls = new Set(survivorPages.map((p) => p.url));
+      for (const page of loserPages) {
+        if (pageUrls.has(page.url)) await tx.companyPage.delete({ where: { id: page.id } });
+        else
+          await tx.companyPage.update({ where: { id: page.id }, data: { companyId: survivor.id } });
+      }
+      const [survivorReviews, loserReviews] = await Promise.all([
+        tx.companyReview.findMany({
+          where: { companyId: survivor.id },
+          select: { kind: true, subjectKey: true },
+        }),
+        tx.companyReview.findMany({ where: { companyId: loser.id } }),
+      ]);
+      const reviewKeys = new Set(survivorReviews.map((r) => `${r.kind}|${r.subjectKey}`));
+      for (const companyReview of loserReviews) {
+        if (reviewKeys.has(`${companyReview.kind}|${companyReview.subjectKey}`))
+          await tx.companyReview.delete({ where: { id: companyReview.id } });
+        else
+          await tx.companyReview.update({
+            where: { id: companyReview.id },
+            data: { companyId: survivor.id },
+          });
+      }
+
       // --- the survivor keeps its own values; gaps are filled from the merged company
       await tx.company.update({
         where: { id: survivor.id },
         data: {
           ...(!survivor.website && loser.website
-            ? { website: loser.website, domain: loser.domain, websiteStatus: loser.websiteStatus }
+            ? {
+                website: loser.website,
+                domain: loser.domain,
+                websiteStatus: loser.websiteStatus,
+                emailStatus: loser.emailStatus,
+                careersStatus: loser.careersStatus,
+                lastEnrichedAt: loser.lastEnrichedAt,
+              }
             : {}),
           ...(!survivor.description && loser.description ? { description: loser.description } : {}),
           ...(!survivor.city && loser.city ? { city: loser.city } : {}),

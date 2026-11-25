@@ -19,3 +19,12 @@ auth header `X-Subscription-Token`, `country` (2-letter), `count` ≤ 20, `offse
 
 Operational notes: OSM data is ODbL — keep the attribution `© OpenStreetMap contributors (ODbL 1.0)` wherever it is
 shown (the API returns it per provider in run progress) and consider share-alike for derived databases.
+
+## Phase 3 additions
+
+| Source / service                | Use                                                                     | Status                                                                                                                                              |
+| ------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Company websites (public HTML)  | Verify the site; read About/Contact/Careers pages and published e-mails | Fetched with `JobFinderBot`, robots.txt (RFC 9309) obeyed on every hop, ≥ 2 s between requests per domain, ≤ 12 requests per site, no login/bypass  |
+| LinkedIn                        | Company URL only, read from the company's own website                   | **Never fetched** (User Agreement §8.2); URLs are recorded as UNVERIFIED/“linked from the site”                                                     |
+| Brave Search (candidate finder) | Propose websites for companies that have none                           | Same gate as discovery: needs `BRAVE_SEARCH_STORAGE_RIGHTS=true`. Each proposal is verified before use. Mock-tested only                            |
+| Anthropic API (optional)        | Second opinion on ambiguous page/contact classification                 | Off unless `ANTHROPIC_API_KEY` is set. Sends short page snippets (≤ 2 000 chars) — do not enable if site content must not leave your infrastructure |

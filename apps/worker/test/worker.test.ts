@@ -12,6 +12,7 @@ import {
 import type { PrismaClient } from '@jobfinder/database';
 import { DiscoveryModule } from '../src/discovery/discovery.module';
 import { DISCOVERY_PROVIDERS } from '../src/discovery/discovery.tokens';
+import { EnrichmentModule } from '../src/enrichment/enrichment.module';
 import { HeartbeatService } from '../src/heartbeat/heartbeat.service';
 import { InfrastructureModule, PRISMA } from '../src/infrastructure.module';
 import { MaintenanceService } from '../src/maintenance/maintenance.service';
@@ -25,7 +26,7 @@ beforeAll(async () => {
   redis = new Redis(process.env.REDIS_URL!, { maxRetriesPerRequest: null });
   await redis.flushdb(); // Redis db 14 is reserved for worker tests
   moduleRef = await Test.createTestingModule({
-    imports: [InfrastructureModule, DiscoveryModule],
+    imports: [InfrastructureModule, DiscoveryModule, EnrichmentModule],
     providers: [HeartbeatService, MaintenanceService],
   })
     .overrideProvider(DISCOVERY_PROVIDERS)
@@ -68,6 +69,9 @@ describe('worker ↔ Redis', () => {
     expect(
       schedulers.filter((s) => s.name === MAINTENANCE_JOBS.PURGE_EXPIRED_SESSIONS),
     ).toHaveLength(1);
+    expect(schedulers.filter((s) => s.name === MAINTENANCE_JOBS.RECONCILE_ENRICHMENT)).toHaveLength(
+      1,
+    );
   });
 });
 
