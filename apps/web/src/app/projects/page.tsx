@@ -1,171 +1,138 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus } from 'lucide-react';
+import { RunStatusBadge } from '@/components/badges';
 import { AuthedPage } from '@/components/app-shell';
+import { ProjectForm } from '@/components/project-form';
+import { EmptyState, ErrorState, PageHeader } from '@/components/states';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { createProject, listProjects } from '@/lib/api';
-
-/** One entry per line or comma-separated; the API trims and de-duplicates. */
-const splitList = (value: string) =>
-  value
-    .split(/[\n,]/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-const statusVariant = (status: string) =>
-  status === 'COMPLETED' ? 'success' : status === 'FAILED' ? 'destructive' : 'secondary';
-
-function NewProjectForm({ onCreated }: { onCreated: () => void }) {
-  const [error, setError] = useState<string | null>(null);
-  const create = useMutation({
-    mutationFn: (form: FormData) =>
-      createProject({
-        name: String(form.get('name') ?? ''),
-        country: String(form.get('country') ?? '') || undefined,
-        city: String(form.get('city') ?? ''),
-        industry: String(form.get('industry') ?? ''),
-        keywords: splitList(String(form.get('keywords') ?? '')),
-        targetRoles: splitList(String(form.get('targetRoles') ?? '')),
-        targetSkills: splitList(String(form.get('targetSkills') ?? '')),
-      }),
-    onSuccess: onCreated,
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    create.mutate(new FormData(event.currentTarget));
-  };
-
-  return (
-    <Card>
-      <form onSubmit={submit} noValidate>
-        <CardHeader>
-          <CardTitle>New search project</CardTitle>
-          <CardDescription>
-            Describe where to look; discovery runs are started from the project.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="mt-6 grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2 sm:col-span-2">
-            <Label htmlFor="name">Project name</Label>
-            <Input id="name" name="name" placeholder="Lahore Software Houses" required />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="country">Country (ISO code)</Label>
-            <Input id="country" name="country" defaultValue="PK" maxLength={2} />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="city">City</Label>
-            <Input id="city" name="city" placeholder="Lahore" required />
-          </div>
-          <div className="flex flex-col gap-2 sm:col-span-2">
-            <Label htmlFor="industry">Industry</Label>
-            <Input id="industry" name="industry" placeholder="Software Development" required />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="keywords">Search keywords (one per line)</Label>
-            <Textarea
-              id="keywords"
-              name="keywords"
-              rows={5}
-              placeholder={'Software House\nIT Company'}
-              required
-            />
-          </div>
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="targetRoles">Target roles (one per line)</Label>
-              <Textarea
-                id="targetRoles"
-                name="targetRoles"
-                rows={2}
-                placeholder="Backend Developer"
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="targetSkills">Target skills (one per line)</Label>
-              <Textarea id="targetSkills" name="targetSkills" rows={2} placeholder="TypeScript" />
-            </div>
-          </div>
-          {error && (
-            <p role="alert" className="text-sm whitespace-pre-line text-destructive sm:col-span-2">
-              {error}
-            </p>
-          )}
-          <div className="sm:col-span-2">
-            <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Creating…' : 'Create project'}
-            </Button>
-          </div>
-        </CardContent>
-      </form>
-    </Card>
-  );
-}
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { listProjects } from '@/lib/api';
+import { timeAgo } from '@/lib/format';
 
 function ProjectList() {
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const { data, isPending, error } = useQuery({ queryKey: ['projects'], queryFn: listProjects });
   const [showForm, setShowForm] = useState(false);
+  const projects = useQuery({ queryKey: ['projects'], queryFn: listProjects });
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Projects</h1>
-        <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? 'outline' : 'default'}>
-          {showForm ? 'Cancel' : 'New project'}
-        </Button>
-      </div>
+      <PageHeader
+        title="Search projects"
+        description="A project says where and what to search for. Start discovery runs from it."
+        actions={
+          !showForm && (
+            <Button onClick={() => setShowForm(true)}>
+              <Plus className="size-4" aria-hidden="true" />
+              New project
+            </Button>
+          )
+        }
+      />
 
       {showForm && (
-        <NewProjectForm
-          onCreated={() => {
-            setShowForm(false);
+        <ProjectForm
+          onCancel={() => setShowForm(false)}
+          onCreated={(project) => {
             void queryClient.invalidateQueries({ queryKey: ['projects'] });
+            void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+            router.push(`/projects/${project.id}`);
           }}
         />
       )}
 
-      {isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
-      {error && <p className="text-sm text-destructive">{error.message}</p>}
-      {data && data.items.length === 0 && !showForm && (
-        <p className="text-sm text-muted-foreground">
-          No projects yet. Create one to start discovering companies.
-        </p>
-      )}
-
-      <ul className="flex flex-col gap-3" data-testid="project-list">
-        {data?.items.map((project) => (
-          <li key={project.id}>
-            <Link href={`/projects/${project.id}`}>
-              <Card className="gap-2 py-4 transition-colors hover:bg-accent">
-                <CardHeader className="flex-row items-center justify-between">
-                  <CardTitle>{project.name}</CardTitle>
-                  {project.lastRun && (
-                    <Badge variant={statusVariant(project.lastRun.status)}>
-                      {project.lastRun.status}
-                    </Badge>
-                  )}
-                </CardHeader>
-                <CardContent className="text-sm text-muted-foreground">
-                  {project.industry} · {project.city}, {project.country} · {project.keywords.length}{' '}
-                  keyword
-                  {project.keywords.length === 1 ? '' : 's'}
-                </CardContent>
-              </Card>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <Card className="gap-0 overflow-hidden py-0">
+        {projects.isPending ? (
+          <div className="flex flex-col gap-3 p-4" aria-busy="true">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-10 w-full" />
+            ))}
+          </div>
+        ) : projects.error ? (
+          <ErrorState error={projects.error} onRetry={() => void projects.refetch()} />
+        ) : projects.data.items.length === 0 ? (
+          <EmptyState
+            title="No projects yet"
+            description="Create a project to start discovering companies."
+            action={
+              !showForm && (
+                <Button size="sm" onClick={() => setShowForm(true)}>
+                  New project
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <Table aria-label="Search projects" data-testid="project-list">
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Project</TableHead>
+                <TableHead>Industry</TableHead>
+                <TableHead>Location</TableHead>
+                <TableHead>Keywords</TableHead>
+                <TableHead>Last run</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {projects.data.items.map((p) => (
+                <TableRow key={p.id}>
+                  <TableCell>
+                    <Link
+                      href={`/projects/${p.id}`}
+                      className="font-medium hover:underline focus-visible:underline"
+                    >
+                      {p.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>{p.industry}</TableCell>
+                  <TableCell>
+                    {p.city}, {p.country}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex max-w-64 flex-wrap gap-1">
+                      {p.keywords.slice(0, 3).map((k) => (
+                        <Badge key={k} variant="secondary">
+                          {k}
+                        </Badge>
+                      ))}
+                      {p.keywords.length > 3 && (
+                        <Badge variant="outline">+{p.keywords.length - 3}</Badge>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {p.lastRun ? (
+                      <span className="flex flex-wrap items-center gap-2">
+                        <RunStatusBadge status={p.lastRun.status} />
+                        <span className="text-xs text-muted-foreground">
+                          {p.lastRun.stats.candidatesFound} found · {timeAgo(p.lastRun.createdAt)}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">Not run yet</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
     </div>
   );
 }
