@@ -38,6 +38,88 @@ export const baseEnvSchema = z.object({
     .refine((v) => /^rediss?:\/\//.test(v), 'REDIS_URL must be a redis:// or rediss:// URL'),
 });
 
+/** Where export files are kept: a directory (development) or an S3-compatible bucket. */
+const exportStorageFields = {
+  EXPORT_STORAGE_DRIVER: z.enum(['fs', 's3']).default('fs'),
+  /** fs driver. Default: <repo>/.data/exports */
+  EXPORT_STORAGE_DIR: optionalString(z.string().trim().min(1)),
+  EXPORT_S3_ENDPOINT: optionalString(z.url()),
+  EXPORT_S3_REGION: z.string().trim().min(1).default('us-east-1'),
+  EXPORT_S3_BUCKET: optionalString(z.string().trim().min(3)),
+  EXPORT_S3_ACCESS_KEY_ID: optionalString(z.string().trim().min(1)),
+  EXPORT_S3_SECRET_ACCESS_KEY: optionalString(z.string().trim().min(1)),
+  EXPORT_S3_FORCE_PATH_STYLE: booleanFromString.default(true),
+};
+
+function requireS3Settings(
+  env: {
+    EXPORT_STORAGE_DRIVER: 'fs' | 's3';
+    EXPORT_S3_BUCKET?: string;
+    EXPORT_S3_ACCESS_KEY_ID?: string;
+    EXPORT_S3_SECRET_ACCESS_KEY?: string;
+  },
+  ctx: z.RefinementCtx,
+): void {
+  if (env.EXPORT_STORAGE_DRIVER !== 's3') return;
+  for (const key of [
+    'EXPORT_S3_BUCKET',
+    'EXPORT_S3_ACCESS_KEY_ID',
+    'EXPORT_S3_SECRET_ACCESS_KEY',
+  ] as const) {
+    if (!env[key]) {
+      ctx.addIssue({
+        code: 'custom',
+        path: [key],
+        message: `${key} is required when EXPORT_STORAGE_DRIVER=s3`,
+      });
+    }
+  }
+}
+
+export type ExportStorageConfig =
+  | { driver: 'fs'; directory: string }
+  | {
+      driver: 's3';
+      endpoint?: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      forcePathStyle: boolean;
+    };
+
+/** The validated storage settings as a plain config object. */
+export function exportStorageConfig(env: {
+  EXPORT_STORAGE_DRIVER: 'fs' | 's3';
+  EXPORT_STORAGE_DIR?: string;
+  EXPORT_S3_ENDPOINT?: string;
+  EXPORT_S3_REGION: string;
+  EXPORT_S3_BUCKET?: string;
+  EXPORT_S3_ACCESS_KEY_ID?: string;
+  EXPORT_S3_SECRET_ACCESS_KEY?: string;
+  EXPORT_S3_FORCE_PATH_STYLE: boolean;
+}): ExportStorageConfig {
+  if (env.EXPORT_STORAGE_DRIVER === 's3') {
+    return {
+      driver: 's3',
+      endpoint: env.EXPORT_S3_ENDPOINT,
+      region: env.EXPORT_S3_REGION,
+      bucket: env.EXPORT_S3_BUCKET!,
+      accessKeyId: env.EXPORT_S3_ACCESS_KEY_ID!,
+      secretAccessKey: env.EXPORT_S3_SECRET_ACCESS_KEY!,
+      forcePathStyle: env.EXPORT_S3_FORCE_PATH_STYLE,
+    };
+  }
+  return {
+    driver: 'fs',
+    directory:
+      env.EXPORT_STORAGE_DIR ?? join(findWorkspaceRoot() ?? process.cwd(), '.data', 'exports'),
+  };
+}
+
+/** Used only when nothing is configured outside production; production must set its own. */
+const DEV_EXPORT_LINK_SECRET = 'dev-only-export-link-secret-do-not-use-in-production';
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_HOST: z.string().min(1).default('0.0.0.0'),
@@ -76,8 +158,28 @@ export const apiEnvSchema = baseEnvSchema
     AUTH_RATE_LIMIT_PER_MINUTE: positiveInt('AUTH_RATE_LIMIT_PER_MINUTE').default(10),
     /** Swagger UI at /docs. Defaults to on outside production. */
     SWAGGER_ENABLED: booleanFromString.optional(),
+
+    // ---- Exports (see docs/adr/0007-exports.md) ----
+    ...exportStorageFields,
+    /** HMAC key for short-lived download links. Required in production (>= 32 characters). */
+    EXPORT_LINK_SECRET: optionalString(
+      z.string().min(32, 'EXPORT_LINK_SECRET must be at least 32 characters'),
+    ),
+    EXPORT_LINK_TTL_SECONDS: positiveInt('EXPORT_LINK_TTL_SECONDS').max(900).default(60),
+    /** Queued + running exports one workspace may have at a time. */
+    EXPORT_MAX_ACTIVE_PER_WORKSPACE: positiveInt('EXPORT_MAX_ACTIVE_PER_WORKSPACE')
+      .max(20)
+      .default(3),
   })
   .superRefine((env, ctx) => {
+    requireS3Settings(env, ctx);
+    if (env.NODE_ENV === 'production' && !env.EXPORT_LINK_SECRET) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['EXPORT_LINK_SECRET'],
+        message: 'EXPORT_LINK_SECRET is required in production',
+      });
+    }
     const secure = env.SESSION_COOKIE_SECURE ?? env.NODE_ENV === 'production';
     if (env.NODE_ENV === 'production' && !secure) {
       ctx.addIssue({
@@ -97,6 +199,7 @@ export const apiEnvSchema = baseEnvSchema
   .transform((env) => ({
     ...env,
     LOG_LEVEL: env.LOG_LEVEL ?? (env.NODE_ENV === 'production' ? 'info' : 'debug'),
+    EXPORT_LINK_SECRET: env.EXPORT_LINK_SECRET ?? DEV_EXPORT_LINK_SECRET,
     SESSION_COOKIE_SECURE: env.SESSION_COOKIE_SECURE ?? env.NODE_ENV === 'production',
     SWAGGER_ENABLED: env.SWAGGER_ENABLED ?? env.NODE_ENV !== 'production',
   }));
@@ -175,7 +278,22 @@ export const workerEnvSchema = baseEnvSchema
     INTELLIGENCE_BATCH_SIZE: positiveInt('INTELLIGENCE_BATCH_SIZE').max(200).default(25),
     INTELLIGENCE_CONCURRENCY: positiveInt('INTELLIGENCE_CONCURRENCY').max(10).default(2),
     INTELLIGENCE_MAX_ATTEMPTS: positiveInt('INTELLIGENCE_MAX_ATTEMPTS').max(10).default(3),
+
+    // ---- Exports (see docs/adr/0007-exports.md) ----
+    ...exportStorageFields,
+    EXPORT_CONCURRENCY: positiveInt('EXPORT_CONCURRENCY').max(10).default(2),
+    EXPORT_MAX_ATTEMPTS: positiveInt('EXPORT_MAX_ATTEMPTS').max(10).default(3),
+    EXPORT_RETRY_BASE_MS: positiveInt('EXPORT_RETRY_BASE_MS').default(5000),
+    /** Rows read from the database per batch. */
+    EXPORT_BATCH_SIZE: positiveInt('EXPORT_BATCH_SIZE').max(5000).default(500),
+    /** Larger exports fail with a clear message instead of exhausting memory/disk. */
+    EXPORT_MAX_ROWS: positiveInt('EXPORT_MAX_ROWS').max(1_000_000).default(100_000),
+    /** Files are deleted this long after they are created; the history entry stays. */
+    EXPORT_RETENTION_DAYS: positiveInt('EXPORT_RETENTION_DAYS').max(365).default(7),
+    /** Exports stuck in QUEUED/RUNNING longer than this are re-enqueued. */
+    EXPORT_RECONCILE_STALE_SECONDS: positiveInt('EXPORT_RECONCILE_STALE_SECONDS').default(120),
   })
+  .superRefine(requireS3Settings)
   .transform((env) => ({
     ...env,
     LOG_LEVEL: env.LOG_LEVEL ?? (env.NODE_ENV === 'production' ? 'info' : 'debug'),

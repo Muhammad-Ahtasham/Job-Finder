@@ -14,6 +14,8 @@ export const QUEUES = {
   JOB_DISCOVERY: 'job-discovery',
   /** Scores a project's jobs: one job per project. */
   JOB_MATCHING: 'job-matching',
+  /** CSV/XLSX generation: one job per Export. */
+  EXPORTS: 'exports',
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
@@ -28,7 +30,17 @@ export const MAINTENANCE_JOBS = {
   RECONCILE_JOBS: 'reconcile-jobs',
   /** Status sweep (expiry / stale), pending job analysis. */
   SWEEP_INTELLIGENCE: 'sweep-intelligence',
+  /** Re-enqueue lost exports; delete files past their retention. */
+  RECONCILE_EXPORTS: 'reconcile-exports',
 } as const;
+
+export const EXPORT_JOBS = {
+  GENERATE: 'generate-export',
+} as const;
+
+export const generateExportJobSchema = z.object({ exportId: z.string().uuid() });
+export type GenerateExportJob = z.infer<typeof generateExportJobSchema>;
+export const exportJobId = (exportId: string) => `export-${exportId}`;
 
 export const DISCOVERY_JOBS = {
   PLAN_RUN: 'plan-run',

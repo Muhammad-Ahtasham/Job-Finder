@@ -19,6 +19,7 @@
     "ENRICHMENT_*",
     "JOBS_*",
     "INTELLIGENCE_*",
+    "EXPORT_*",
     "ANTHROPIC_*"
   ],
   "tasks": {
