@@ -1,6 +1,7 @@
 import {
   Inject,
   Injectable,
+  Optional,
   Logger,
   OnApplicationBootstrap,
   OnApplicationShutdown,
@@ -12,6 +13,7 @@ import type { PrismaClient } from '@jobfinder/database';
 import { ENV, type Env } from '../config/env.token';
 import { DiscoveryReconciler } from '../discovery/reconciler';
 import { EnrichmentQueueService } from '../enrichment/enrichment-queue.service';
+import { IntelligenceService } from '../intelligence/intelligence.service';
 import { JobQueueService } from '../jobs/job-queue.service';
 import { PRISMA, REDIS } from '../infrastructure.module';
 
@@ -35,6 +37,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     private readonly reconciler: DiscoveryReconciler,
     private readonly enrichment: EnrichmentQueueService,
     private readonly jobs: JobQueueService,
+    @Optional() private readonly intelligence?: IntelligenceService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -73,6 +76,14 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       },
     );
     await this.queue.upsertJobScheduler(
+      MAINTENANCE_JOBS.SWEEP_INTELLIGENCE,
+      { every: 30_000 },
+      {
+        name: MAINTENANCE_JOBS.SWEEP_INTELLIGENCE,
+        opts: { removeOnComplete: 5, removeOnFail: 50 },
+      },
+    );
+    await this.queue.upsertJobScheduler(
       MAINTENANCE_JOBS.PURGE_EXPIRED_SOURCE_DATA,
       { every: HOUR_MS },
       {
@@ -106,6 +117,9 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_JOBS) {
       return this.jobs.reconcile();
+    }
+    if (job.name === MAINTENANCE_JOBS.SWEEP_INTELLIGENCE) {
+      return this.intelligence ? this.intelligence.sweep() : undefined;
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_ENRICHMENT) {
       return this.enrichment.reconcile();

@@ -60,7 +60,7 @@ export class JobsService {
     workspace: WorkspaceContext,
     companyId: string,
     query: {
-      status: 'OPEN' | 'CLOSED';
+      status: 'OPEN' | 'CLOSED' | 'EXPIRED' | 'UNKNOWN';
       employmentType?: string;
       workplaceType?: string;
       limit: number;

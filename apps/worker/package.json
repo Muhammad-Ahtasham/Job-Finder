@@ -17,6 +17,7 @@
     "@jobfinder/database": "workspace:*",
     "@jobfinder/discovery": "workspace:*",
     "@jobfinder/enrichment": "workspace:*",
+    "@jobfinder/intelligence": "workspace:*",
     "@jobfinder/jobs": "workspace:*",
     "@nestjs/common": "^11.2.11",
     "@nestjs/core": "^11.2.11",

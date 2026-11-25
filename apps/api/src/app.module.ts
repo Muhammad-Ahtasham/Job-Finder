@@ -12,6 +12,7 @@ import { ConfigModule } from './config/config.module';
 import { ENV, type Env } from './config/env.token';
 import { CompaniesModule } from './companies/companies.module';
 import { HealthModule } from './health/health.module';
+import { IntelligenceModule } from './intelligence/intelligence.module';
 import { ProjectsModule } from './projects/projects.module';
 import { QueueModule } from './queue/queue.module';
 import { RunsModule } from './runs/runs.module';
@@ -75,6 +76,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     ProjectsModule,
     RunsModule,
     CompaniesModule,
+    IntelligenceModule,
     HealthModule,
   ],
   providers: [

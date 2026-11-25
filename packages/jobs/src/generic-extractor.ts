@@ -120,6 +120,7 @@ export function extractJobsFromHtml(
                 abs(str(posting.directApply === true ? posting.url : undefined)) ?? url,
               sourceUrl: url,
               publishedAt: parseDate(posting.datePosted),
+              expiresAt: parseDate(posting.validThrough),
             },
             'JSON_LD',
           );

@@ -163,6 +163,18 @@ export const workerEnvSchema = baseEnvSchema
     JOBS_MAX_ATTEMPTS: positiveInt('JOBS_MAX_ATTEMPTS').max(10).default(3),
     JOBS_RETRY_BASE_MS: positiveInt('JOBS_RETRY_BASE_MS').default(10_000),
     JOBS_RECONCILE_STALE_SECONDS: positiveInt('JOBS_RECONCILE_STALE_SECONDS').default(120),
+    /** An OPEN job nobody has confirmed for this long becomes UNKNOWN (never CLOSED: absence of proof). */
+    JOBS_STALE_AFTER_DAYS: positiveInt('JOBS_STALE_AFTER_DAYS').max(365).default(14),
+
+    // ---- Job intelligence and matching (see docs/adr/0006-job-intelligence.md) ----
+    /** Set to false to run analysis and matching on rules only, even with an API key. */
+    INTELLIGENCE_AI_ENABLED: booleanFromString.default(true),
+    /** Model for job analysis and semantic matching (uses ANTHROPIC_API_KEY). */
+    INTELLIGENCE_AI_MODEL: z.string().trim().min(1).default('claude-haiku-5-5'),
+    /** Jobs analysed per sweep (every 30 s). */
+    INTELLIGENCE_BATCH_SIZE: positiveInt('INTELLIGENCE_BATCH_SIZE').max(200).default(25),
+    INTELLIGENCE_CONCURRENCY: positiveInt('INTELLIGENCE_CONCURRENCY').max(10).default(2),
+    INTELLIGENCE_MAX_ATTEMPTS: positiveInt('INTELLIGENCE_MAX_ATTEMPTS').max(10).default(3),
   })
   .transform((env) => ({
     ...env,

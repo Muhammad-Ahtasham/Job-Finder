@@ -48,6 +48,8 @@ export interface NormalizedJob {
   /** The page describing the job. */
   sourceUrl: string;
   publishedAt: Date | null;
+  /** Only when the source published an expiry date (JSON-LD `validThrough`). */
+  expiresAt?: Date | null;
   extraction: ExtractionKind;
 }
 

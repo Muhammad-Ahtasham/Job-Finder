@@ -65,6 +65,9 @@ model Workspace {
   jobSources      JobSource[]
   jobs            Job[]
   jobChecks       JobCheck[]
+  jobObservations JobObservation[]
+  jobMatches      JobMatch[]
+  matchPrefs      MatchPreference[]
 
   @@map("workspaces")
 }
@@ -192,6 +195,9 @@ model SearchProject {
   workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy User?       @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: SetNull)
   runs      SearchRun[]
+
+  matchPreference MatchPreference?
+  matches         JobMatch[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, createdAt])
@@ -716,9 +722,84 @@ enum JobCheckOutcome {
   FAILED
 }
 
+/// OPEN = listed; CLOSED = an authoritative source stopped listing it (or an official twin replaced it);
+/// EXPIRED = its published expiry date passed; UNKNOWN = we lost sight of it without proof it closed.
 enum JobStatus {
   OPEN
   CLOSED
+  EXPIRED
+  UNKNOWN
+}
+
+enum Seniority {
+  INTERN
+  JUNIOR
+  MID
+  SENIOR
+  LEAD
+  MANAGER
+  DIRECTOR
+  EXECUTIVE
+  UNKNOWN
+}
+
+enum SalaryPeriod {
+  HOUR
+  DAY
+  WEEK
+  MONTH
+  YEAR
+}
+
+/// Who produced a derived value: deterministic rules or the AI provider (after validation).
+enum AnalysisSource {
+  RULES
+  AI
+}
+
+enum SkillKind {
+  REQUIRED
+  PREFERRED
+}
+
+enum RequirementKind {
+  EXPERIENCE
+  EDUCATION
+  CERTIFICATION
+  LANGUAGE
+  OTHER
+}
+
+enum ObservationKind {
+  FIRST_SEEN
+  SEEN
+  CHANGED
+  MISSING
+  STATUS_CHANGED
+  ANALYZED
+}
+
+enum ExperienceFit {
+  MEETS
+  BELOW
+  ABOVE
+  UNKNOWN
+}
+
+enum LocationFit {
+  MATCH
+  PARTIAL
+  MISMATCH
+  UNKNOWN
+}
+
+enum EvidenceKind {
+  ROLE
+  SKILL_MATCHED
+  SKILL_MISSING
+  EXPERIENCE
+  LOCATION
+  WORKPLACE
 }
 
 enum EmploymentType {
@@ -801,37 +882,68 @@ model JobSource {
 }
 
 model Job {
-  id             String         @id @default(uuid(7)) @db.Uuid
-  workspaceId    String         @map("workspace_id") @db.Uuid
-  companyId      String         @map("company_id") @db.Uuid
-  sourceId       String         @map("source_id") @db.Uuid
+  id              String         @id @default(uuid(7)) @db.Uuid
+  workspaceId     String         @map("workspace_id") @db.Uuid
+  companyId       String         @map("company_id") @db.Uuid
+  sourceId        String         @map("source_id") @db.Uuid
   /// The provider's own job id (generic pages: hash of the job URL). UNIQUE per source = no duplicate imports.
-  externalId     String         @map("external_id")
+  externalId      String         @map("external_id")
   /// sha1(title|primary location): detects the same vacancy listed by two sources.
-  fingerprint    String
-  title          String
+  fingerprint     String
+  title           String
   /// Plain text only; provider HTML is never stored.
-  description    String?
-  location       String?
-  locations      String[]       @default([])
-  department     String?
-  employmentType EmploymentType @default(UNKNOWN) @map("employment_type")
-  workplaceType  WorkplaceType  @default(UNKNOWN) @map("workplace_type")
+  description     String?
+  location        String?
+  locations       String[]       @default([])
+  department      String?
+  employmentType  EmploymentType @default(UNKNOWN) @map("employment_type")
+  workplaceType   WorkplaceType  @default(UNKNOWN) @map("workplace_type")
   /// Exactly as the provider published it. This system never submits applications.
-  applicationUrl String?        @map("application_url")
-  sourceUrl      String         @map("source_url")
-  publishedAt    DateTime?      @map("published_at")
+  applicationUrl  String?        @map("application_url")
+  sourceUrl       String         @map("source_url")
+  publishedAt     DateTime?      @map("published_at")
   /// API | JSON_LD | MICRODATA | HTML | AI
-  extraction     String
-  status         JobStatus      @default(OPEN)
-  firstSeenAt    DateTime       @default(now()) @map("first_seen_at")
-  lastSeenAt     DateTime       @default(now()) @map("last_seen_at")
-  closedAt       DateTime?      @map("closed_at")
-  lastCheckId    String?        @map("last_check_id") @db.Uuid
+  extraction      String
+  status          JobStatus      @default(OPEN)
+  firstSeenAt     DateTime       @default(now()) @map("first_seen_at")
+  lastSeenAt      DateTime       @default(now()) @map("last_seen_at")
+  closedAt        DateTime?      @map("closed_at")
+  lastCheckId     String?        @map("last_check_id") @db.Uuid
+  /// Only when the source published an expiry date (JSON-LD validThrough).
+  expiresAt       DateTime?      @map("expires_at")
+  statusReason    String?        @map("status_reason")
+  statusChangedAt DateTime?      @map("status_changed_at")
+  /// sha1 of the content analysis depends on (title, description, location, ...).
+  contentHash     String         @default("") @map("content_hash")
+
+  // ---- Phase 5: structured intelligence (null / UNKNOWN = not stated, never guessed)
+  normalizedTitle       String?       @map("normalized_title")
+  seniority             Seniority     @default(UNKNOWN)
+  roleCategory          String?       @map("role_category")
+  salaryMin             Int?          @map("salary_min")
+  salaryMax             Int?          @map("salary_max")
+  salaryCurrency        String?       @map("salary_currency")
+  salaryPeriod          SalaryPeriod? @map("salary_period")
+  /// The exact text the salary was read from.
+  salaryText            String?       @map("salary_text")
+  minYearsExperience    Int?          @map("min_years_experience")
+  maxYearsExperience    Int?          @map("max_years_experience")
+  /// contentHash the analysis was computed for; differs from contentHash while analysis is stale.
+  analysisHash          String?       @map("analysis_hash")
+  analyzedAt            DateTime?     @map("analyzed_at")
+  analysisProvider      String?       @map("analysis_provider")
+  analysisModel         String?       @map("analysis_model")
+  analysisPromptVersion String?       @map("analysis_prompt_version")
+  analysisConfidence    Float?        @map("analysis_confidence")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   source    JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  skills       JobSkill[]
+  requirements JobRequirement[]
+  observations JobObservation[]
+  matches      JobMatch[]
 
   @@unique([sourceId, externalId])
   @@index([companyId, status])
@@ -872,4 +984,158 @@ model JobCheck {
   @@index([sourceId, startedAt])
   @@index([companyId, startedAt])
   @@map("job_checks")
+}
+
+// ============================================================== Phase 5: job intelligence
+
+/// A skill a job asks for, normalized to a canonical key ("node.js" / "nodejs" / "Node" -> "nodejs").
+model JobSkill {
+  id        String         @id @default(uuid(7)) @db.Uuid
+  jobId     String         @map("job_id") @db.Uuid
+  /// Canonical key used for matching.
+  skillKey  String         @map("skill_key")
+  /// Canonical display name.
+  name      String
+  kind      SkillKind
+  /// How the skill appeared in the posting (grounded: always text that occurs in the description).
+  evidence  String?
+  source    AnalysisSource
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, skillKey])
+  @@index([skillKey])
+  @@map("job_skills")
+}
+
+model JobRequirement {
+  id        String          @id @default(uuid(7)) @db.Uuid
+  jobId     String          @map("job_id") @db.Uuid
+  kind      RequirementKind
+  /// The requirement as written in the posting (an excerpt, never a paraphrase).
+  text      String
+  mandatory Boolean         @default(true)
+  minYears  Int?            @map("min_years")
+  maxYears  Int?            @map("max_years")
+  /// EDUCATION only: HIGH_SCHOOL | DIPLOMA | BACHELOR | MASTER | DOCTORATE.
+  level     String?
+  source    AnalysisSource
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, kind])
+  @@map("job_requirements")
+}
+
+/// Append-only history of what each check saw and every status change. Rows are never updated.
+model JobObservation {
+  id          String          @id @default(uuid(7)) @db.Uuid
+  workspaceId String          @map("workspace_id") @db.Uuid
+  jobId       String          @map("job_id") @db.Uuid
+  checkId     String?         @map("check_id") @db.Uuid
+  kind        ObservationKind
+  fromStatus  JobStatus?      @map("from_status")
+  toStatus    JobStatus?      @map("to_status")
+  reason      String?
+  /// { field: { from, to } } for CHANGED observations.
+  changes     Json            @default("{}")
+  contentHash String?         @map("content_hash")
+  observedAt  DateTime        @default(now()) @map("observed_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  job       Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, id])
+  @@map("job_observations")
+}
+
+/// Per-project matching configuration. Absent row = defaults.
+model MatchPreference {
+  projectId        String          @id @map("project_id") @db.Uuid
+  workspaceId      String          @map("workspace_id") @db.Uuid
+  /// Relative weights; normalized to sum to 1 at scoring time.
+  roleWeight       Float           @default(0.3) @map("role_weight")
+  skillsWeight     Float           @default(0.4) @map("skills_weight")
+  experienceWeight Float           @default(0.2) @map("experience_weight")
+  locationWeight   Float           @default(0.1) @map("location_weight")
+  /// The ideal hire's years of experience; null = not specified.
+  yearsExperience  Int?            @map("years_experience")
+  seniorities      Seniority[]     @default([])
+  workplaceTypes   WorkplaceType[] @default([]) @map("workplace_types")
+  /// Preferred locations (city/country names). Empty = the project's own city and country.
+  locations        String[]        @default([])
+  /// Default floor for GET /projects/:id/matches.
+  minScore         Int             @default(0) @map("min_score")
+  /// Bumped on every change; part of every match's input hash.
+  version          Int             @default(1)
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+
+  project   SearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+  @@map("match_preferences")
+}
+
+model JobMatch {
+  id                String         @id @default(uuid(7)) @db.Uuid
+  workspaceId       String         @map("workspace_id") @db.Uuid
+  projectId         String         @map("project_id") @db.Uuid
+  jobId             String         @map("job_id") @db.Uuid
+  /// 0..100
+  score             Float
+  // Component scores 0..1; NULL = unknown (excluded from the weighted mean, lowers confidence).
+  roleScore         Float?         @map("role_score")
+  skillsScore       Float?         @map("skills_score")
+  experienceScore   Float?         @map("experience_score")
+  locationScore     Float?         @map("location_score")
+  matchedSkills     String[]       @default([]) @map("matched_skills")
+  missingSkills     String[]       @default([]) @map("missing_skills")
+  experienceFit     ExperienceFit  @map("experience_fit")
+  locationFit       LocationFit    @map("location_fit")
+  explanation       String
+  explanationSource AnalysisSource @map("explanation_source")
+  confidence        Float
+  /// Provider / model / prompt version of the AI used for the semantic parts ("rules" when none).
+  provider          String
+  model             String
+  promptVersion     String         @map("prompt_version")
+  /// Normalized weights actually applied.
+  weights           Json
+  /// Hash of everything the score depends on: an equal hash means the stored result is current.
+  inputHash         String         @map("input_hash")
+  /// Hash of the inputs of the AI role-similarity call, so changing weights never re-calls the AI.
+  semanticHash      String?        @map("semantic_hash")
+  semanticScore     Float?         @map("semantic_score")
+  computedAt        DateTime       @default(now()) @map("computed_at")
+
+  workspace Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   SearchProject      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  job       Job                @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  evidence  JobMatchEvidence[]
+
+  @@unique([projectId, jobId])
+  @@index([projectId, score, id])
+  @@index([jobId])
+  @@map("job_matches")
+}
+
+model JobMatchEvidence {
+  id       String       @id @default(uuid(7)) @db.Uuid
+  matchId  String       @map("match_id") @db.Uuid
+  kind     EvidenceKind
+  label    String
+  detail   String?
+  /// Text from the job posting that supports this item.
+  jobText  String?      @map("job_text")
+  /// Contribution of this item, 0..1, when it has one.
+  score    Float?
+  position Int          @default(0)
+
+  match JobMatch @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@index([matchId, position])
+  @@map("job_match_evidence")
 }

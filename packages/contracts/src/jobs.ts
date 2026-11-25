@@ -15,7 +15,7 @@ export type EmploymentType = z.infer<typeof employmentTypeSchema>;
 export const workplaceTypeSchema = z.enum(['ONSITE', 'REMOTE', 'HYBRID', 'UNKNOWN']);
 export type WorkplaceType = z.infer<typeof workplaceTypeSchema>;
 
-export const jobStatusSchema = z.enum(['OPEN', 'CLOSED']);
+export const jobStatusSchema = z.enum(['OPEN', 'CLOSED', 'EXPIRED', 'UNKNOWN']);
 export const jobSourceStatusSchema = z.enum(['ACTIVE', 'UNSUPPORTED', 'DISABLED']);
 
 /**
