@@ -17,6 +17,7 @@
     "OVERPASS_*",
     "ENRICHMENT_*",
     "JOBS_*",
+    "INTELLIGENCE_*",
     "ANTHROPIC_*"
   ],
   "tasks": {

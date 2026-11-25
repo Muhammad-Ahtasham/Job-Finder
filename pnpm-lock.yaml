@@ -230,6 +230,9 @@ importers:
       '@jobfinder/discovery':
         specifier: workspace:*
         version: link:../../packages/discovery
+      '@jobfinder/intelligence':
+        specifier: workspace:*
+        version: link:../../packages/intelligence
       '@nestjs/common':
         specifier: ^11.2.11
         version: 11.2.11(reflect-metadata@0.2.2)(rxjs@7.8.2)(supports-color@8.1.1)
@@ -391,6 +394,9 @@ importers:
       '@jobfinder/enrichment':
         specifier: workspace:*
         version: link:../../packages/enrichment
+      '@jobfinder/intelligence':
+        specifier: workspace:*
+        version: link:../../packages/intelligence
       '@jobfinder/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -497,6 +503,15 @@ importers:
       tldts:
         specifier: ^7.5.5
         version: 7.5.5
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
+
+  packages/intelligence:
+    dependencies:
+      '@jobfinder/discovery':
+        specifier: workspace:*
+        version: link:../discovery
       zod:
         specifier: ^4.6.7
         version: 4.6.7

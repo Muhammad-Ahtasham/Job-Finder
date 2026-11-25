@@ -12,6 +12,8 @@ export const QUEUES = {
   ENRICHMENT: 'company-enrichment',
   /** Career page discovery + job fetching: one job per JobRun. */
   JOB_DISCOVERY: 'job-discovery',
+  /** Scores a project's jobs: one job per project. */
+  JOB_MATCHING: 'job-matching',
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
@@ -24,6 +26,8 @@ export const MAINTENANCE_JOBS = {
   PURGE_EXPIRED_SOURCE_DATA: 'purge-expired-source-data',
   RECONCILE_ENRICHMENT: 'reconcile-enrichment',
   RECONCILE_JOBS: 'reconcile-jobs',
+  /** Status sweep (expiry / stale), pending job analysis. */
+  SWEEP_INTELLIGENCE: 'sweep-intelligence',
 } as const;
 
 export const DISCOVERY_JOBS = {
@@ -46,6 +50,14 @@ export const JOB_DISCOVERY_JOBS = {
 export const discoverJobsJobSchema = z.object({ runId: z.string().uuid() });
 export type DiscoverJobsJob = z.infer<typeof discoverJobsJobSchema>;
 export const jobRunJobId = (runId: string) => `jobs-${runId}`;
+
+export const JOB_MATCHING_JOBS = {
+  MATCH_PROJECT: 'match-project',
+} as const;
+
+export const matchProjectJobSchema = z.object({ projectId: z.string().uuid() });
+export type MatchProjectJob = z.infer<typeof matchProjectJobSchema>;
+export const matchProjectJobId = (projectId: string) => `match-${projectId}`;
 
 export const planRunJobSchema = z.object({ runId: z.string().uuid() });
 export type PlanRunJob = z.infer<typeof planRunJobSchema>;

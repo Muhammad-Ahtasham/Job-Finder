@@ -5,3 +5,5 @@ export * from './queues';
 export * from './discovery';
 export * from './enrichment';
 export * from './jobs';
+
+export * from './intelligence';
