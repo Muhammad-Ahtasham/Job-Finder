@@ -1,4 +1,5 @@
-// Phase 1 schema: identity + tenancy. Canonical company/job tables arrive in later phases.
+// Phase 1: identity + tenancy. Phase 2: search projects + company discovery.
+// Phase 3: company website enrichment (bottom of file).
 
 generator client {
   provider     = "prisma-client"
@@ -27,12 +28,14 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  memberships       WorkspaceMember[]
-  sessions          Session[]
-  personalWorkspace Workspace?        @relation("PersonalWorkspaceOwner")
-  createdProjects   SearchProject[]   @relation("ProjectCreator")
-  requestedRuns     SearchRun[]       @relation("RunRequester")
-  resolvedReviews   MatchReview[]     @relation("ReviewResolver")
+  memberships            WorkspaceMember[]
+  sessions               Session[]
+  personalWorkspace      Workspace?        @relation("PersonalWorkspaceOwner")
+  createdProjects        SearchProject[]   @relation("ProjectCreator")
+  requestedRuns          SearchRun[]       @relation("RunRequester")
+  resolvedReviews        MatchReview[]     @relation("ReviewResolver")
+  requestedEnrichments   ExtractionRun[]   @relation("ExtractionRequester")
+  resolvedCompanyReviews CompanyReview[]   @relation("CompanyReviewResolver")
 
   @@map("users")
 }
@@ -47,12 +50,16 @@ model Workspace {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  personalOwner User?             @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: Cascade)
-  members       WorkspaceMember[]
-  projects      SearchProject[]
-  runs          SearchRun[]
-  companies     Company[]
-  reviews       MatchReview[]
+  personalOwner   User?             @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: Cascade)
+  members         WorkspaceMember[]
+  projects        SearchProject[]
+  runs            SearchRun[]
+  companies       Company[]
+  reviews         MatchReview[]
+  extractionRuns  ExtractionRun[]
+  companyPages    CompanyPage[]
+  companyContacts CompanyContact[]
+  companyReviews  CompanyReview[]
 
   @@map("workspaces")
 }
@@ -281,28 +288,30 @@ model DiscoveryTaskAttempt {
 }
 
 model Company {
-  id            String        @id @default(uuid(7)) @db.Uuid
-  workspaceId   String        @map("workspace_id") @db.Uuid
-  displayName   String        @map("display_name")
+  id             String        @id @default(uuid(7)) @db.Uuid
+  workspaceId    String        @map("workspace_id") @db.Uuid
+  displayName    String        @map("display_name")
   /// Folded name without legal suffixes: blocking/matching key.
-  nameKey       String        @map("name_key")
-  coreName      String        @map("core_name")
-  nameTokens    String[]      @map("name_tokens")
-  coreTokens    String[]      @map("core_tokens")
-  country       String
-  city          String?
-  website       String?
+  nameKey        String        @map("name_key")
+  coreName       String        @map("core_name")
+  nameTokens     String[]      @map("name_tokens")
+  coreTokens     String[]      @map("core_tokens")
+  country        String
+  city           String?
+  website        String?
   /// Registrable domain of `website` (never an aggregator domain).
-  domain        String?
-  description   String?
+  domain         String?
+  description    String?
   // Verification statuses instead of dropping incomplete companies.
-  websiteStatus FieldStatus   @default(MISSING) @map("website_status")
-  emailStatus   FieldStatus   @default(MISSING) @map("email_status")
-  careersStatus FieldStatus   @default(MISSING) @map("careers_status")
-  status        CompanyStatus @default(ACTIVE)
-  mergedIntoId  String?       @map("merged_into_id") @db.Uuid
-  createdAt     DateTime      @default(now()) @map("created_at")
-  updatedAt     DateTime      @updatedAt @map("updated_at")
+  websiteStatus  FieldStatus   @default(MISSING) @map("website_status")
+  emailStatus    FieldStatus   @default(MISSING) @map("email_status")
+  careersStatus  FieldStatus   @default(MISSING) @map("careers_status")
+  status         CompanyStatus @default(ACTIVE)
+  mergedIntoId   String?       @map("merged_into_id") @db.Uuid
+  /// Phase 3: last time website enrichment finished without a fatal error.
+  lastEnrichedAt DateTime?     @map("last_enriched_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
 
   workspace          Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   mergedInto         Company?          @relation("CompanyMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
@@ -314,6 +323,10 @@ model Company {
   results            DiscoveryResult[]
   reviewsAsCandidate MatchReview[]     @relation("ReviewCandidate")
   reviewsAsExisting  MatchReview[]     @relation("ReviewExisting")
+  pages              CompanyPage[]
+  contacts           CompanyContact[]
+  extractionRuns     ExtractionRun[]
+  companyReviews     CompanyReview[]
 
   @@index([workspaceId, status, id])
   @@index([workspaceId, nameKey])
@@ -459,4 +472,211 @@ model MatchReview {
   @@unique([workspaceId, pairKey])
   @@index([workspaceId, status, id])
   @@map("match_reviews")
+}
+
+// ============================================================================
+// Phase 3: company website enrichment
+//
+// Pages, contacts and verification decisions are kept with their evidence. Raw page bodies
+// are NOT stored (only a hash of the visible text), and nothing here claims that a mailbox
+// exists: VERIFIED on a contact means "published on the verified official website".
+// ============================================================================
+
+enum ExtractionStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  COMPLETED_WITH_ERRORS
+  FAILED
+}
+
+enum PageType {
+  HOMEPAGE
+  ABOUT
+  CONTACT
+  CAREERS
+  JOBS
+  TEAM
+  OTHER
+}
+
+enum PageFetchStatus {
+  /// Known from a link but deliberately not fetched (e.g. an external job board).
+  DISCOVERED
+  FETCHED
+  BLOCKED_ROBOTS
+  BLOCKED_UNSAFE
+  FAILED
+}
+
+enum ContactKind {
+  EMAIL
+  LINKEDIN
+}
+
+enum EmailCategory {
+  HR
+  CAREERS
+  RECRUITMENT
+  GENERAL
+  OTHER
+}
+
+enum ClassifiedBy {
+  RULES
+  AI
+}
+
+enum CompanyReviewKind {
+  WEBSITE
+}
+
+enum CompanyReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WebsiteDecision {
+  OFFICIAL
+  REJECTED
+  UNCERTAIN
+}
+
+/// One enrichment attempt for one company: the durable record of what was crawled and what failed.
+model ExtractionRun {
+  id            String           @id @default(uuid(7)) @db.Uuid
+  workspaceId   String           @map("workspace_id") @db.Uuid
+  companyId     String           @map("company_id") @db.Uuid
+  requestedById String?          @map("requested_by_id") @db.Uuid
+  status        ExtractionStatus @default(QUEUED)
+  /// = companyId while QUEUED/RUNNING, NULL once finished. UNIQUE makes "one active run per company" a
+  /// database guarantee (NULLs do not collide), so concurrent POST /enrich calls share one run.
+  activeKey     String?          @unique @map("active_key") @db.Uuid
+  attempts      Int              @default(0)
+  /// The website that was crawled, if one was accepted.
+  websiteUrl    String?          @map("website_url")
+  pagesFound    Int              @default(0) @map("pages_found")
+  contactsFound Int              @default(0) @map("contacts_found")
+  /// Crawl counters: requests, pagesFetched, blockedByRobots, blockedUnsafe, failed, aiCalls.
+  stats         Json             @default("{}")
+  errorCode     String?          @map("error_code")
+  errorMessage  String?          @map("error_message")
+  /// Every tracked failure of the run ({code, message, retryable}); capped.
+  errors        Json             @default("[]")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  startedAt     DateTime?        @map("started_at")
+  finishedAt    DateTime?        @map("finished_at")
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  requestedBy User?     @relation("ExtractionRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([status, createdAt])
+  @@map("extraction_runs")
+}
+
+model CompanyPage {
+  id             String          @id @default(uuid(7)) @db.Uuid
+  companyId      String          @map("company_id") @db.Uuid
+  workspaceId    String          @map("workspace_id") @db.Uuid
+  /// Canonical URL (no fragment / tracking params): one row per page per company.
+  url            String
+  type           PageType
+  typeConfidence Float           @map("type_confidence")
+  classifiedBy   ClassifiedBy    @default(RULES) @map("classified_by")
+  title          String?
+  fetchStatus    PageFetchStatus @map("fetch_status")
+  httpStatus     Int?            @map("http_status")
+  contentType    String?         @map("content_type")
+  /// SHA-256 of the visible text: detects change without storing the page.
+  contentHash    String?         @map("content_hash")
+  errorCode      String?         @map("error_code")
+  discoveredFrom String?         @map("discovered_from")
+  depth          Int             @default(0)
+  /// On another registrable domain (an ATS job board): linked, never crawled.
+  external       Boolean         @default(false)
+  fetchedAt      DateTime?       @map("fetched_at")
+  firstSeenAt    DateTime        @default(now()) @map("first_seen_at")
+  lastSeenAt     DateTime        @default(now()) @map("last_seen_at")
+  lastRunId      String?         @map("last_run_id") @db.Uuid
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  CompanyContact[]
+
+  @@unique([companyId, url])
+  @@index([companyId, type])
+  @@index([workspaceId])
+  @@map("company_pages")
+}
+
+/// A publicly published e-mail address or LinkedIn company URL, with where and when it was found.
+model CompanyContact {
+  id                 String         @id @default(uuid(7)) @db.Uuid
+  companyId          String         @map("company_id") @db.Uuid
+  workspaceId        String         @map("workspace_id") @db.Uuid
+  kind               ContactKind
+  /// Lower-cased address / canonical LinkedIn company URL.
+  value              String
+  category           EmailCategory?
+  classifiedBy       ClassifiedBy   @default(RULES) @map("classified_by")
+  confidence         Float
+  /// VERIFIED = published on the verified official website. NEVER "the mailbox exists".
+  verificationStatus FieldStatus    @map("verification_status")
+  verificationMethod String         @map("verification_method")
+  extractionMethod   String         @map("extraction_method")
+  /// Always present: every contact is traceable to a page.
+  sourceUrl          String         @map("source_url")
+  sourcePageId       String?        @map("source_page_id") @db.Uuid
+  /// Short quote around the value, for reviewers.
+  context            String?
+  domainMatch        Boolean?       @map("domain_match")
+  /// First time this value was extracted; later runs only move lastSeenAt.
+  extractedAt        DateTime       @map("extracted_at")
+  lastSeenAt         DateTime       @map("last_seen_at")
+  lastRunId          String?        @map("last_run_id") @db.Uuid
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workspace  Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  sourcePage CompanyPage? @relation(fields: [sourcePageId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, kind, value])
+  @@index([companyId, kind])
+  @@index([workspaceId])
+  @@map("company_contacts")
+}
+
+/// A decision about a candidate website, with its evidence.
+/// APPROVED/REJECTED without `decidedManually` is an automatic decision; PENDING needs a human.
+/// A decision a person made is never overwritten or re-proposed by later enrichment runs.
+model CompanyReview {
+  id              String              @id @default(uuid(7)) @db.Uuid
+  workspaceId     String              @map("workspace_id") @db.Uuid
+  companyId       String              @map("company_id") @db.Uuid
+  kind            CompanyReviewKind   @default(WEBSITE)
+  /// Registrable domain of the candidate: one review per (company, kind, domain).
+  subjectKey      String              @map("subject_key")
+  subjectUrl      String              @map("subject_url")
+  decision        WebsiteDecision
+  confidence      Float
+  /// Evidence[]: {signal, detail, weight, url?}
+  evidence        Json
+  status          CompanyReviewStatus @default(PENDING)
+  decidedManually Boolean             @default(false) @map("decided_manually")
+  runId           String?             @map("run_id") @db.Uuid
+  resolvedById    String?             @map("resolved_by_id") @db.Uuid
+  resolvedAt      DateTime?           @map("resolved_at")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  resolvedBy User?     @relation("CompanyReviewResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, kind, subjectKey])
+  @@index([workspaceId, status])
+  @@map("company_reviews")
 }

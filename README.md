@@ -1,7 +1,7 @@
 # Company Discovery & Job Intelligence Platform
 
-Phases 1–2: monorepo, auth, workspaces, **search projects and company discovery**. Crawling, careers pages and
-jobs are not implemented yet. Architecture: [`docs/ARCHITECTURE_PLAN.md`](docs/ARCHITECTURE_PLAN.md) · decisions: [`docs/adr`](docs/adr).
+Phases 1–3: monorepo, auth, workspaces, search projects, company discovery and **company website enrichment**
+(official-site verification, careers/contact pages, published e-mails). Job extraction is not implemented yet. Architecture: [`docs/ARCHITECTURE_PLAN.md`](docs/ARCHITECTURE_PLAN.md) · decisions: [`docs/adr`](docs/adr).
 
 ## Prerequisites
 
@@ -38,3 +38,12 @@ Set `DISCOVERY_CONTACT` to an email/URL so OSM can reach you. See `docs/provider
 
 `apps/api` (NestJS REST) · `apps/worker` (BullMQ consumers) · `apps/web` (Next.js) · `packages/contracts` (zod schemas) ·
 `packages/database` (Prisma) · `packages/config` (validated env) · `packages/discovery` (provider interfaces, normalization, deduplication, providers).
+
+## Website enrichment (Phase 3)
+
+`POST /api/v1/companies/:id/enrich` queues a crawl; read results with `GET /companies/:id/sources` (website
+decision + evidence, pages, rejected candidates, runs) and `GET /companies/:id/contacts` (`?kind=EMAIL&category=HR`).
+Only e-mails literally published on the verified site are stored — never guessed; `VERIFIED` means "published on the
+official site", not "mailbox exists". The crawler is SSRF-hardened, obeys robots.txt and rate-limits per domain; set
+`DISCOVERY_CONTACT` so its User-Agent identifies you. `ANTHROPIC_API_KEY` (optional) enables AI only for ambiguous
+cases. Design and threat model: [`docs/adr/0004-website-enrichment.md`](docs/adr/0004-website-enrichment.md).

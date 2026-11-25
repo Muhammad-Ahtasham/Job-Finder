@@ -133,6 +133,27 @@ export const workerEnvSchema = baseEnvSchema
     /** Exponential backoff base for retrying failed provider calls. */
     DISCOVERY_RETRY_BASE_MS: positiveInt('DISCOVERY_RETRY_BASE_MS').default(5000),
     DISCOVERY_MAX_ATTEMPTS: positiveInt('DISCOVERY_MAX_ATTEMPTS').max(10).default(5),
+
+    // ---- Company website enrichment (see docs/adr/0004-website-enrichment.md) ----
+    ENRICHMENT_CONCURRENCY: positiveInt('ENRICHMENT_CONCURRENCY').max(20).default(2),
+    /** Minimum spacing between requests to one registrable domain, across all workers. */
+    ENRICHMENT_DOMAIN_MIN_INTERVAL_MS: positiveInt('ENRICHMENT_DOMAIN_MIN_INTERVAL_MS').default(
+      2000,
+    ),
+    ENRICHMENT_REQUEST_TIMEOUT_MS: positiveInt('ENRICHMENT_REQUEST_TIMEOUT_MS').default(10_000),
+    ENRICHMENT_MAX_RESPONSE_BYTES: positiveInt('ENRICHMENT_MAX_RESPONSE_BYTES').default(1_048_576),
+    ENRICHMENT_MAX_REQUESTS_PER_SITE: positiveInt('ENRICHMENT_MAX_REQUESTS_PER_SITE')
+      .max(50)
+      .default(12),
+    ENRICHMENT_MAX_ATTEMPTS: positiveInt('ENRICHMENT_MAX_ATTEMPTS').max(10).default(3),
+    ENRICHMENT_RETRY_BASE_MS: positiveInt('ENRICHMENT_RETRY_BASE_MS').default(10_000),
+    /** Runs stuck in QUEUED/RUNNING longer than this are re-enqueued by the reconciler. */
+    ENRICHMENT_RECONCILE_STALE_SECONDS: positiveInt('ENRICHMENT_RECONCILE_STALE_SECONDS').default(
+      120,
+    ),
+    /** Optional. Enables AI second opinions for ambiguous pages/contacts only. */
+    ANTHROPIC_API_KEY: optionalString(z.string().trim().min(1)),
+    ENRICHMENT_AI_MODEL: z.string().trim().min(1).default('claude-haiku-5-5'),
   })
   .transform((env) => ({
     ...env,

@@ -14,7 +14,9 @@
     "WORKER_*",
     "DISCOVERY_*",
     "BRAVE_*",
-    "OVERPASS_*"
+    "OVERPASS_*",
+    "ENRICHMENT_*",
+    "ANTHROPIC_*"
   ],
   "tasks": {
     "generate": {
