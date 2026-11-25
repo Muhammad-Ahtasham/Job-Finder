@@ -17,3 +17,4 @@ process.env.ENRICHMENT_RECONCILE_STALE_SECONDS = '1';
 process.env.JOBS_MAX_ATTEMPTS = '2';
 process.env.JOBS_RETRY_BASE_MS = '40';
 process.env.JOBS_RECONCILE_STALE_SECONDS = '1';
+process.env.MONITOR_MISS_MIN_GAP_MINUTES = '0';

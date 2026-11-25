@@ -30,14 +30,16 @@ model User {
 
   memberships            WorkspaceMember[]
   sessions               Session[]
-  personalWorkspace      Workspace?        @relation("PersonalWorkspaceOwner")
-  createdProjects        SearchProject[]   @relation("ProjectCreator")
-  requestedRuns          SearchRun[]       @relation("RunRequester")
-  resolvedReviews        MatchReview[]     @relation("ReviewResolver")
-  requestedEnrichments   ExtractionRun[]   @relation("ExtractionRequester")
-  resolvedCompanyReviews CompanyReview[]   @relation("CompanyReviewResolver")
-  requestedJobRuns       JobRun[]          @relation("JobRunRequester")
-  requestedExports       Export[]          @relation("ExportRequester")
+  personalWorkspace      Workspace?               @relation("PersonalWorkspaceOwner")
+  createdProjects        SearchProject[]          @relation("ProjectCreator")
+  requestedRuns          SearchRun[]              @relation("RunRequester")
+  resolvedReviews        MatchReview[]            @relation("ReviewResolver")
+  requestedEnrichments   ExtractionRun[]          @relation("ExtractionRequester")
+  resolvedCompanyReviews CompanyReview[]          @relation("CompanyReviewResolver")
+  requestedJobRuns       JobRun[]                 @relation("JobRunRequester")
+  requestedExports       Export[]                 @relation("ExportRequester")
+  notifications          Notification[]
+  notificationPrefs      NotificationPreference[]
 
   @@map("users")
 }
@@ -52,24 +54,28 @@ model Workspace {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  personalOwner   User?             @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: Cascade)
-  members         WorkspaceMember[]
-  projects        SearchProject[]
-  runs            SearchRun[]
-  companies       Company[]
-  reviews         MatchReview[]
-  extractionRuns  ExtractionRun[]
-  companyPages    CompanyPage[]
-  companyContacts CompanyContact[]
-  companyReviews  CompanyReview[]
-  jobRuns         JobRun[]
-  jobSources      JobSource[]
-  jobs            Job[]
-  jobChecks       JobCheck[]
-  jobObservations JobObservation[]
-  jobMatches      JobMatch[]
-  exports         Export[]
-  matchPrefs      MatchPreference[]
+  personalOwner       User?                    @relation("PersonalWorkspaceOwner", fields: [personalOwnerId], references: [id], onDelete: Cascade)
+  members             WorkspaceMember[]
+  projects            SearchProject[]
+  runs                SearchRun[]
+  companies           Company[]
+  reviews             MatchReview[]
+  extractionRuns      ExtractionRun[]
+  companyPages        CompanyPage[]
+  companyContacts     CompanyContact[]
+  companyReviews      CompanyReview[]
+  jobRuns             JobRun[]
+  jobSources          JobSource[]
+  jobs                Job[]
+  jobChecks           JobCheck[]
+  jobObservations     JobObservation[]
+  jobMatches          JobMatch[]
+  exports             Export[]
+  monitoringSchedules MonitoringSchedule[]
+  websiteChecks       WebsiteCheck[]
+  notifications       Notification[]
+  notificationPrefs   NotificationPreference[]
+  matchPrefs          MatchPreference[]
 
   @@map("workspaces")
 }
@@ -326,23 +332,25 @@ model Company {
   createdAt      DateTime      @default(now()) @map("created_at")
   updatedAt      DateTime      @updatedAt @map("updated_at")
 
-  workspace          Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  mergedInto         Company?          @relation("CompanyMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
-  mergedFrom         Company[]         @relation("CompanyMerge")
-  sources            CompanySource[]
-  locations          CompanyLocation[]
-  aliases            CompanyAlias[]
-  identities         CompanyIdentity[]
-  results            DiscoveryResult[]
-  reviewsAsCandidate MatchReview[]     @relation("ReviewCandidate")
-  reviewsAsExisting  MatchReview[]     @relation("ReviewExisting")
-  pages              CompanyPage[]
-  contacts           CompanyContact[]
-  extractionRuns     ExtractionRun[]
-  companyReviews     CompanyReview[]
-  jobRuns            JobRun[]
-  jobSources         JobSource[]
-  jobs               Job[]
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  mergedInto          Company?             @relation("CompanyMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  mergedFrom          Company[]            @relation("CompanyMerge")
+  sources             CompanySource[]
+  locations           CompanyLocation[]
+  aliases             CompanyAlias[]
+  identities          CompanyIdentity[]
+  results             DiscoveryResult[]
+  reviewsAsCandidate  MatchReview[]        @relation("ReviewCandidate")
+  reviewsAsExisting   MatchReview[]        @relation("ReviewExisting")
+  pages               CompanyPage[]
+  contacts            CompanyContact[]
+  extractionRuns      ExtractionRun[]
+  companyReviews      CompanyReview[]
+  jobRuns             JobRun[]
+  jobSources          JobSource[]
+  jobs                Job[]
+  monitoringSchedules MonitoringSchedule[]
+  websiteChecks       WebsiteCheck[]
 
   @@index([workspaceId, status, id])
   @@index([workspaceId, nameKey])
@@ -873,10 +881,11 @@ model JobSource {
   createdAt           DateTime         @default(now()) @map("created_at")
   updatedAt           DateTime         @updatedAt @map("updated_at")
 
-  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  workspace Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   jobs      Job[]
   checks    JobCheck[]
+  schedules MonitoringSchedule[]
 
   @@unique([companyId, providerId, boardKey])
   @@index([workspaceId])
@@ -884,39 +893,43 @@ model JobSource {
 }
 
 model Job {
-  id              String         @id @default(uuid(7)) @db.Uuid
-  workspaceId     String         @map("workspace_id") @db.Uuid
-  companyId       String         @map("company_id") @db.Uuid
-  sourceId        String         @map("source_id") @db.Uuid
+  id                String         @id @default(uuid(7)) @db.Uuid
+  workspaceId       String         @map("workspace_id") @db.Uuid
+  companyId         String         @map("company_id") @db.Uuid
+  sourceId          String         @map("source_id") @db.Uuid
   /// The provider's own job id (generic pages: hash of the job URL). UNIQUE per source = no duplicate imports.
-  externalId      String         @map("external_id")
+  externalId        String         @map("external_id")
   /// sha1(title|primary location): detects the same vacancy listed by two sources.
-  fingerprint     String
-  title           String
+  fingerprint       String
+  title             String
   /// Plain text only; provider HTML is never stored.
-  description     String?
-  location        String?
-  locations       String[]       @default([])
-  department      String?
-  employmentType  EmploymentType @default(UNKNOWN) @map("employment_type")
-  workplaceType   WorkplaceType  @default(UNKNOWN) @map("workplace_type")
+  description       String?
+  location          String?
+  locations         String[]       @default([])
+  department        String?
+  employmentType    EmploymentType @default(UNKNOWN) @map("employment_type")
+  workplaceType     WorkplaceType  @default(UNKNOWN) @map("workplace_type")
   /// Exactly as the provider published it. This system never submits applications.
-  applicationUrl  String?        @map("application_url")
-  sourceUrl       String         @map("source_url")
-  publishedAt     DateTime?      @map("published_at")
+  applicationUrl    String?        @map("application_url")
+  sourceUrl         String         @map("source_url")
+  publishedAt       DateTime?      @map("published_at")
   /// API | JSON_LD | MICRODATA | HTML | AI
-  extraction      String
-  status          JobStatus      @default(OPEN)
-  firstSeenAt     DateTime       @default(now()) @map("first_seen_at")
-  lastSeenAt      DateTime       @default(now()) @map("last_seen_at")
-  closedAt        DateTime?      @map("closed_at")
-  lastCheckId     String?        @map("last_check_id") @db.Uuid
+  extraction        String
+  status            JobStatus      @default(OPEN)
+  firstSeenAt       DateTime       @default(now()) @map("first_seen_at")
+  lastSeenAt        DateTime       @default(now()) @map("last_seen_at")
+  closedAt          DateTime?      @map("closed_at")
+  lastCheckId       String?        @map("last_check_id") @db.Uuid
   /// Only when the source published an expiry date (JSON-LD validThrough).
-  expiresAt       DateTime?      @map("expires_at")
-  statusReason    String?        @map("status_reason")
-  statusChangedAt DateTime?      @map("status_changed_at")
+  expiresAt         DateTime?      @map("expires_at")
+  statusReason      String?        @map("status_reason")
+  statusChangedAt   DateTime?      @map("status_changed_at")
+  /// Consecutive authoritative checks that did not list this job (closure needs several).
+  missedChecks      Int            @default(0) @map("missed_checks")
+  firstMissedAt     DateTime?      @map("first_missed_at")
+  lastMissedCheckId String?        @map("last_missed_check_id") @db.Uuid
   /// sha1 of the content analysis depends on (title, description, location, ...).
-  contentHash     String         @default("") @map("content_hash")
+  contentHash       String         @default("") @map("content_hash")
 
   // ---- Phase 5: structured intelligence (null / UNKNOWN = not stated, never guessed)
   normalizedTitle       String?       @map("normalized_title")
@@ -957,28 +970,34 @@ model Job {
 /// One fetch of one source. Failures are first-class: a FAILED/INCONCLUSIVE check is evidence of
 /// "we do not know", never of "no vacancies".
 model JobCheck {
-  id                String          @id @default(uuid(7)) @db.Uuid
-  workspaceId       String          @map("workspace_id") @db.Uuid
-  companyId         String          @map("company_id") @db.Uuid
-  sourceId          String          @map("source_id") @db.Uuid
-  runId             String?         @map("run_id") @db.Uuid
-  outcome           JobCheckOutcome
+  id                  String          @id @default(uuid(7)) @db.Uuid
+  workspaceId         String          @map("workspace_id") @db.Uuid
+  companyId           String          @map("company_id") @db.Uuid
+  sourceId            String          @map("source_id") @db.Uuid
+  runId               String?         @map("run_id") @db.Uuid
+  outcome             JobCheckOutcome
   /// The official API answered completely, so jobs it no longer lists were closed.
-  authoritative     Boolean         @default(false)
-  jobsFound         Int             @default(0) @map("jobs_found")
-  jobsCreated       Int             @default(0) @map("jobs_created")
-  jobsUpdated       Int             @default(0) @map("jobs_updated")
-  jobsClosed        Int             @default(0) @map("jobs_closed")
-  duplicatesSkipped Int             @default(0) @map("duplicates_skipped")
-  pagesFetched      Int             @default(0) @map("pages_fetched")
-  errorCode         String?         @map("error_code")
-  errorMessage      String?         @map("error_message")
-  retryable         Boolean?
-  httpStatus        Int?            @map("http_status")
+  authoritative       Boolean         @default(false)
+  jobsFound           Int             @default(0) @map("jobs_found")
+  jobsCreated         Int             @default(0) @map("jobs_created")
+  jobsUpdated         Int             @default(0) @map("jobs_updated")
+  jobsClosed          Int             @default(0) @map("jobs_closed")
+  duplicatesSkipped   Int             @default(0) @map("duplicates_skipped")
+  pagesFetched        Int             @default(0) @map("pages_fetched")
+  errorCode           String?         @map("error_code")
+  errorMessage        String?         @map("error_message")
+  retryable           Boolean?
+  httpStatus          Int?            @map("http_status")
   /// NO_OPENINGS / INCONCLUSIVE: what the source said (or why nothing could be read).
-  evidence          String?
-  startedAt         DateTime        @default(now()) @map("started_at")
-  finishedAt        DateTime?       @map("finished_at")
+  evidence            String?
+  trigger             CheckTrigger    @default(MANUAL)
+  scheduleId          String?         @map("schedule_id") @db.Uuid
+  /// Jobs this check did not list (an answer, so they count toward closure).
+  jobsMissing         Int             @default(0) @map("jobs_missing")
+  /// Of those, how many wait for a confirming check before being closed.
+  pendingConfirmation Int             @default(0) @map("pending_confirmation")
+  startedAt           DateTime        @default(now()) @map("started_at")
+  finishedAt          DateTime?       @map("finished_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   source    JobSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
@@ -1203,4 +1222,139 @@ model Export {
   @@index([status, createdAt])
   @@index([expiresAt])
   @@map("exports")
+}
+
+// ============================================================== Phase 8: monitoring
+
+enum MonitoringKind {
+  /// A supported ATS board read through its public API.
+  ATS_BOARD
+  /// A company career page read from HTML.
+  CAREER_PAGE
+  /// Is the company website up, and is it still the same site?
+  WEBSITE
+}
+
+enum CheckTrigger {
+  MANUAL
+  SCHEDULED
+}
+
+enum WebsiteCheckOutcome {
+  OK
+  FAILED
+}
+
+enum NotificationType {
+  NEW_JOB
+  JOB_CLOSED
+  JOB_CHANGED
+  WEBSITE_CHANGED
+}
+
+/// When a source (or a company's website) is checked next, and how its checks have been going.
+/// Provider errors live here and in job_checks/website_checks; they never touch job state.
+model MonitoringSchedule {
+  id                  String         @id @default(uuid(7)) @db.Uuid
+  workspaceId         String         @map("workspace_id") @db.Uuid
+  companyId           String         @map("company_id") @db.Uuid
+  /// The source (ATS board / career page) for those kinds; NULL for WEBSITE.
+  jobSourceId         String?        @map("job_source_id") @db.Uuid
+  kind                MonitoringKind
+  /// `<kind>:<source id or company id>`: one schedule per thing watched.
+  scopeKey            String         @unique @map("scope_key")
+  enabled             Boolean        @default(true)
+  intervalMinutes     Int            @map("interval_minutes")
+  nextRunAt           DateTime       @map("next_run_at")
+  lastRunAt           DateTime?      @map("last_run_at")
+  /// The last time the source ANSWERED (jobs found or an explicit "no openings").
+  lastSuccessAt       DateTime?      @map("last_success_at")
+  lastOutcome         String?        @map("last_outcome")
+  consecutiveFailures Int            @default(0) @map("consecutive_failures")
+  lastErrorCode       String?        @map("last_error_code")
+  lastErrorMessage    String?        @map("last_error_message")
+  lastErrorAt         DateTime?      @map("last_error_at")
+  /// Claimed by a tick until then, so one due schedule is enqueued once.
+  lockedUntil         DateTime?      @map("locked_until")
+  createdAt           DateTime       @default(now()) @map("created_at")
+  updatedAt           DateTime       @updatedAt @map("updated_at")
+
+  workspace Workspace  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  jobSource JobSource? @relation(fields: [jobSourceId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@index([workspaceId, companyId])
+  @@map("monitoring_schedules")
+}
+
+/// One availability check of a company website.
+model WebsiteCheck {
+  id           String              @id @default(uuid(7)) @db.Uuid
+  workspaceId  String              @map("workspace_id") @db.Uuid
+  companyId    String              @map("company_id") @db.Uuid
+  scheduleId   String?             @map("schedule_id") @db.Uuid
+  url          String
+  outcome      WebsiteCheckOutcome
+  httpStatus   Int?                @map("http_status")
+  finalUrl     String?             @map("final_url")
+  finalDomain  String?             @map("final_domain")
+  /// SHA-256 of the visible page text: records change without storing the page.
+  contentHash  String?             @map("content_hash")
+  errorCode    String?             @map("error_code")
+  errorMessage String?             @map("error_message")
+  /// DOMAIN_CHANGED | CONTENT_CHANGED when this check differs from the last good one.
+  changeKind   String?             @map("change_kind")
+  startedAt    DateTime            @default(now()) @map("started_at")
+  finishedAt   DateTime?           @map("finished_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, startedAt])
+  @@map("website_checks")
+}
+
+/// One thing a user should know about. UNIQUE (workspace, user, dedupe key) makes creating it
+/// idempotent: re-running a check, a retry or two workers can never produce a second one.
+model Notification {
+  id                String           @id @default(uuid(7)) @db.Uuid
+  workspaceId       String           @map("workspace_id") @db.Uuid
+  userId            String           @map("user_id") @db.Uuid
+  type              NotificationType
+  /// Identifies the event, e.g. `job-new:<job id>`.
+  dedupeKey         String           @map("dedupe_key")
+  title             String
+  body              String
+  /// Links and facts (companyId, jobId, ...). Never rendered as HTML.
+  data              Json             @default("{}")
+  /// Channels the notification has been delivered to ("in_app", later "email").
+  deliveredChannels String[]         @default([]) @map("delivered_channels")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  readAt            DateTime?        @map("read_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, dedupeKey])
+  @@index([userId, workspaceId, readAt, id])
+  @@map("notifications")
+}
+
+/// Which notifications a member wants, per type and channel. No row = the defaults
+/// (in-app on, email off).
+model NotificationPreference {
+  id          String           @id @default(uuid(7)) @db.Uuid
+  workspaceId String           @map("workspace_id") @db.Uuid
+  userId      String           @map("user_id") @db.Uuid
+  type        NotificationType
+  inApp       Boolean          @default(true) @map("in_app")
+  email       Boolean          @default(false)
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, type])
+  @@map("notification_preferences")
 }

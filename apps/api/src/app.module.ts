@@ -13,6 +13,7 @@ import { ENV, type Env } from './config/env.token';
 import { CompaniesModule } from './companies/companies.module';
 import { DirectoryModule } from './directory/directory.module';
 import { ExportsModule } from './exports/exports.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { HealthModule } from './health/health.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -81,6 +82,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module';
     IntelligenceModule,
     DirectoryModule,
     ExportsModule,
+    MonitoringModule,
     HealthModule,
   ],
   providers: [

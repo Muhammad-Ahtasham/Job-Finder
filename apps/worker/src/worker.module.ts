@@ -9,6 +9,7 @@ import { IntelligenceModule } from './intelligence/intelligence.module';
 import { JobsModule } from './jobs/jobs.module';
 import { HeartbeatService } from './heartbeat/heartbeat.service';
 import { InfrastructureModule } from './infrastructure.module';
+import { MonitoringModule } from './monitoring/monitoring.module';
 import { MaintenanceService } from './maintenance/maintenance.service';
 
 const env = loadWorkerEnv();
@@ -31,6 +32,7 @@ const env = loadWorkerEnv();
     JobsModule,
     IntelligenceModule,
     ExportsModule,
+    MonitoringModule,
   ],
   providers: [HeartbeatService, MaintenanceService],
 })

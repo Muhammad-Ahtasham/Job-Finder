@@ -16,6 +16,8 @@ export const QUEUES = {
   JOB_MATCHING: 'job-matching',
   /** CSV/XLSX generation: one job per Export. */
   EXPORTS: 'exports',
+  /** Scheduled checks of job sources and company websites: one job per due schedule. */
+  MONITORING: 'monitoring',
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
@@ -32,7 +34,17 @@ export const MAINTENANCE_JOBS = {
   SWEEP_INTELLIGENCE: 'sweep-intelligence',
   /** Re-enqueue lost exports; delete files past their retention. */
   RECONCILE_EXPORTS: 'reconcile-exports',
+  /** Finds due monitoring schedules and queues them. */
+  MONITORING_TICK: 'monitoring-tick',
 } as const;
+
+export const MONITORING_JOBS = {
+  RUN_SCHEDULE: 'run-schedule',
+} as const;
+
+export const runScheduleJobSchema = z.object({ scheduleId: z.string().uuid() });
+export type RunScheduleJob = z.infer<typeof runScheduleJobSchema>;
+export const monitoringJobId = (scheduleId: string) => `monitor-${scheduleId}`;
 
 export const EXPORT_JOBS = {
   GENERATE: 'generate-export',

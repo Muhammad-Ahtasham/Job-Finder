@@ -168,7 +168,7 @@ describe('Greenhouse via a careers link', () => {
     ).toBe(1);
   });
 
-  it('is idempotent, and closes a job only when the API stops listing it', async () => {
+  it('is idempotent, and closes a job only after the API has stopped listing it in two checks', async () => {
     site('<a href="https://boards.greenhouse.io/acme">Careers</a>');
     api.set(`${GH}acme/jobs`, () => ghBoard(ghJob(1), ghJob(2)));
     const { fx, company } = await setup();
@@ -185,6 +185,18 @@ describe('Greenhouse via a careers link', () => {
 
     api.set(`${GH}acme/jobs`, () => ghBoard(ghJob(1, 'Engineer 1 (renamed)')));
     await run(fx, company.id);
+    // One missing sighting is not a closure: job 2 waits for a confirming check.
+    expect((await jobsOf(company.id)).map((j) => [j.externalId, j.status, j.title])).toEqual([
+      ['1', 'OPEN', 'Engineer 1 (renamed)'],
+      ['2', 'OPEN', 'Engineer 2'],
+    ]);
+    expect(
+      await prisma.jobCheck.findFirstOrThrow({
+        where: { companyId: company.id },
+        orderBy: { startedAt: 'desc' },
+      }),
+    ).toMatchObject({ jobsMissing: 1, pendingConfirmation: 1, jobsClosed: 0 });
+    await run(fx, company.id); // the second authoritative miss confirms it
     const jobs = await jobsOf(company.id);
     expect(jobs.map((j) => [j.externalId, j.status, j.title])).toEqual([
       ['1', 'OPEN', 'Engineer 1 (renamed)'],
@@ -239,6 +251,9 @@ describe('Greenhouse via a careers link', () => {
     api.set(`${GH}acme/jobs`, () => ghBoard());
     const empty = await run(fx, company.id);
     expect(empty.status).toBe('COMPLETED'); // a clean "none" is not an error
+    // ...but one empty answer does not wipe the board: it must be confirmed.
+    expect((await jobsOf(company.id))[0]).toMatchObject({ status: 'OPEN' });
+    await run(fx, company.id);
     expect((await jobsOf(company.id))[0]).toMatchObject({ status: 'CLOSED' });
     expect(
       await prisma.jobCheck.findFirstOrThrow({

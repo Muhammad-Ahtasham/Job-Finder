@@ -15,13 +15,14 @@ import { ENV, type Env } from '../config/env.token';
 import { EnrichmentModule } from '../enrichment/enrichment.module';
 import { PAGE_FETCHER } from '../enrichment/enrichment.tokens';
 import { REDIS } from '../infrastructure.module';
+import { NotificationsModule } from '../monitoring/notifications.module';
 import { JobDiscoveryProcessor } from './job-discovery-processor';
 import { JobQueueService } from './job-queue.service';
 import { CAREER_DISCOVERY, JOB_AI_EXTRACTOR, JOB_PROVIDER_REGISTRY } from './jobs.tokens';
 import { RedisDomainRateLimiter } from '../enrichment/redis-rate-limiter';
 
 @Module({
-  imports: [EnrichmentModule],
+  imports: [EnrichmentModule, NotificationsModule],
   providers: [
     {
       provide: JOB_PROVIDER_REGISTRY,
@@ -68,6 +69,6 @@ import { RedisDomainRateLimiter } from '../enrichment/redis-rate-limiter';
     JobDiscoveryProcessor,
     JobQueueService,
   ],
-  exports: [JobQueueService, JobDiscoveryProcessor],
+  exports: [JobQueueService, JobDiscoveryProcessor, JOB_PROVIDER_REGISTRY, JOB_AI_EXTRACTOR],
 })
 export class JobsModule {}

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   apiEnvSchema,
   exportStorageConfig,
+  monitoringIntervals,
   EnvValidationError,
   parseEnv,
   webEnvSchema,
@@ -73,6 +74,35 @@ describe('apiEnvSchema', () => {
     const dev = parseEnv(apiEnvSchema, valid);
     expect(dev.EXPORT_LINK_SECRET.length).toBeGreaterThanOrEqual(32);
     expect(dev).toMatchObject({ EXPORT_STORAGE_DRIVER: 'fs', EXPORT_LINK_TTL_SECONDS: 60 });
+  });
+
+  it('has the documented monitoring defaults, and they can be changed', () => {
+    const api = parseEnv(apiEnvSchema, valid);
+    expect(monitoringIntervals(api)).toEqual({
+      atsMinutes: 720,
+      careerPageMinutes: 1440,
+      websiteMinutes: 10_080,
+    });
+    const custom = parseEnv(apiEnvSchema, {
+      ...valid,
+      MONITOR_ATS_INTERVAL_HOURS: '24',
+      MONITOR_WEBSITE_INTERVAL_HOURS: '48',
+    });
+    expect(monitoringIntervals(custom)).toMatchObject({ atsMinutes: 1440, websiteMinutes: 2880 });
+    expect(() => parseEnv(apiEnvSchema, { ...valid, MONITOR_ATS_INTERVAL_HOURS: '0' })).toThrow(
+      /MONITOR_ATS_INTERVAL_HOURS/,
+    );
+    const worker = parseEnv(workerEnvSchema, valid);
+    expect(worker).toMatchObject({
+      MONITOR_ENABLED: true,
+      MONITOR_MISS_CONFIRMATIONS: 2,
+      MONITOR_RECHECK_MINUTES: 30,
+      MONITOR_WEBSITE_FAILURES_BEFORE_ALERT: 3,
+      MONITOR_ATS_INTERVAL_HOURS: 12,
+    });
+    expect(parseEnv(workerEnvSchema, { ...valid, MONITOR_ENABLED: 'false' }).MONITOR_ENABLED).toBe(
+      false,
+    );
   });
 
   it('requires bucket settings for the s3 export storage', () => {
