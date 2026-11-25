@@ -50,6 +50,11 @@ export interface NormalizedJob {
   publishedAt: Date | null;
   /** Only when the source published an expiry date (JSON-LD `validThrough`). */
   expiresAt?: Date | null;
+  /**
+   * Set only when the source itself marks the posting as closed (not merely absent from a list):
+   * the one case where a job is closed without a confirming second check.
+   */
+  explicitlyClosed?: boolean;
   extraction: ExtractionKind;
 }
 

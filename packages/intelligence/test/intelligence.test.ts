@@ -289,14 +289,26 @@ describe('AI output is validated and grounded', () => {
 
 describe('status transitions', () => {
   const now = new Date('2026-11-25T00:00:00Z');
-  it('closes only on an authoritative absence', () => {
-    expect(nextJobStatus('OPEN', { type: 'MISSING_FROM_AUTHORITATIVE_ANSWER' })).toMatchObject({
+  it('closes on an authoritative absence only after it is confirmed', () => {
+    const miss = (missedChecks: number) =>
+      ({ type: 'MISSING_FROM_AUTHORITATIVE_ANSWER', missedChecks, required: 2 }) as const;
+    expect(nextJobStatus('OPEN', miss(1))).toBeNull();
+    expect(nextJobStatus('OPEN', miss(2))).toMatchObject({ status: 'CLOSED' });
+    expect(nextJobStatus('UNKNOWN', miss(2))).toMatchObject({ status: 'CLOSED' });
+    expect(nextJobStatus('EXPIRED', miss(5))).toBeNull();
+    expect(
+      nextJobStatus('OPEN', {
+        type: 'MISSING_FROM_AUTHORITATIVE_ANSWER',
+        missedChecks: 1,
+        required: 1,
+      }),
+    ).toMatchObject({ status: 'CLOSED' });
+  });
+  it('closes at once when the source itself reports the closure', () => {
+    expect(nextJobStatus('OPEN', { type: 'SOURCE_REPORTED_CLOSED' })).toMatchObject({
       status: 'CLOSED',
     });
-    expect(nextJobStatus('UNKNOWN', { type: 'MISSING_FROM_AUTHORITATIVE_ANSWER' })).toMatchObject({
-      status: 'CLOSED',
-    });
-    expect(nextJobStatus('EXPIRED', { type: 'MISSING_FROM_AUTHORITATIVE_ANSWER' })).toBeNull();
+    expect(nextJobStatus('CLOSED', { type: 'SOURCE_REPORTED_CLOSED' })).toBeNull();
   });
   it('reopens a job that is listed again, unless its expiry passed', () => {
     expect(nextJobStatus('CLOSED', { type: 'SEEN', now, expiresAt: null })).toMatchObject({

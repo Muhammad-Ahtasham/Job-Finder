@@ -10,7 +10,11 @@ import {
   type JobFetchResult,
   type JobProviderRegistry,
 } from '@jobfinder/jobs';
+import { monitoringIntervals } from '@jobfinder/config';
+import { ensureCompanySchedules } from '@jobfinder/monitoring';
+import { ENV, type Env } from '../config/env.token';
 import { PRISMA } from '../infrastructure.module';
+import { NotificationService } from '../monitoring/notification.service';
 import { persistCheck } from './job-persister';
 import {
   CAREER_DISCOVERY,
@@ -56,6 +60,8 @@ export class JobDiscoveryProcessor {
     @Inject(PRISMA) private readonly prisma: PrismaClient,
     @Inject(JOB_PROVIDER_REGISTRY) private readonly registry: JobProviderRegistry,
     @Inject(CAREER_DISCOVERY) private readonly careers: CareerPageDiscoveryService,
+    @Inject(ENV) private readonly env: Env,
+    @Optional() private readonly notifications?: NotificationService,
     @Optional() @Inject(JOB_AI_EXTRACTOR) private readonly ai?: AiJobExtractor | null,
   ) {}
 
@@ -88,6 +94,10 @@ export class JobDiscoveryProcessor {
 
     const planned = await this.plan(company, errors, signal);
     const sources = await this.recordSources(company, planned, run);
+    // Everything found here is monitored from now on (existing schedules are left alone).
+    await ensureCompanySchedules(this.prisma, company, {
+      intervals: monitoringIntervals(this.env),
+    });
 
     const outcomes: JobFetchResult['outcome'][] = [];
     let retryableFailures = 0;
@@ -120,7 +130,18 @@ export class JobDiscoveryProcessor {
           pagesFetched: 0,
         };
       }
-      const summary = await persistCheck(this.prisma, source, run.id, result, startedAt);
+      const summary = await persistCheck(this.prisma, source, run.id, result, startedAt, {
+        trigger: 'MANUAL',
+        missPolicy: {
+          confirmations: this.env.MONITOR_MISS_CONFIRMATIONS,
+          minGapMinutes: this.env.MONITOR_MISS_MIN_GAP_MINUTES,
+        },
+        notify: this.notifications
+          ? async (tx, events) => {
+              await this.notifications!.emit(tx, source.workspaceId, events);
+            }
+          : undefined,
+      });
       outcomes.push(result.outcome);
       jobsFound += summary.jobsFound;
       totals.created += summary.jobsCreated;

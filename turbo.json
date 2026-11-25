@@ -20,6 +20,7 @@
     "JOBS_*",
     "INTELLIGENCE_*",
     "EXPORT_*",
+    "MONITOR_*",
     "ANTHROPIC_*"
   ],
   "tasks": {

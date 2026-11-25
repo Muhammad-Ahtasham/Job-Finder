@@ -20,6 +20,7 @@
     "@jobfinder/exports": "workspace:*",
     "@jobfinder/intelligence": "workspace:*",
     "@jobfinder/jobs": "workspace:*",
+    "@jobfinder/monitoring": "workspace:*",
     "@jobfinder/storage": "workspace:*",
     "@nestjs/common": "^11.2.11",
     "@nestjs/core": "^11.2.11",

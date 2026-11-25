@@ -236,6 +236,9 @@ importers:
       '@jobfinder/intelligence':
         specifier: workspace:*
         version: link:../../packages/intelligence
+      '@jobfinder/monitoring':
+        specifier: workspace:*
+        version: link:../../packages/monitoring
       '@jobfinder/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -415,6 +418,9 @@ importers:
       '@jobfinder/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@jobfinder/monitoring':
+        specifier: workspace:*
+        version: link:../../packages/monitoring
       '@jobfinder/storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -569,6 +575,12 @@ importers:
       zod:
         specifier: ^4.6.7
         version: 4.6.7
+
+  packages/monitoring:
+    dependencies:
+      '@jobfinder/database':
+        specifier: workspace:*
+        version: link:../database
 
   packages/storage:
     dependencies:

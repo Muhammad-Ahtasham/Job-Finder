@@ -103,7 +103,9 @@ async function setup() {
     data: { workspaceId: fx.workspaceId, companyId: company.id },
   });
   const check = (src: JobSource, result: JobFetchResult) =>
-    persistCheck(prisma, src, run.id, result, new Date());
+    persistCheck(prisma, src, run.id, result, new Date(), {
+      missPolicy: { confirmations: 2, minGapMinutes: 0 },
+    });
   return { fx, company, source, check };
 }
 
@@ -186,7 +188,12 @@ describe('observation history and status', () => {
     const changed = await prisma.job.findUniqueOrThrow({ where: { id: one.id } });
     expect(changed.analysisHash).toBeNull();
 
-    // an authoritative answer without job 2 closes it
+    // an authoritative answer without job 2 does not close it yet...
+    await check(source, jobsResult([posted('1', { location: 'Karachi, Pakistan' })]));
+    expect(
+      await prisma.job.findFirstOrThrow({ where: { sourceId: source.id, externalId: '2' } }),
+    ).toMatchObject({ status: 'OPEN', missedChecks: 1 });
+    // ...a second one confirms it
     await check(source, jobsResult([posted('1', { location: 'Karachi, Pakistan' })]));
     const two = await prisma.job.findFirstOrThrow({
       where: { sourceId: source.id, externalId: '2' },
@@ -214,6 +221,7 @@ describe('observation history and status', () => {
       'FIRST_SEEN',
       'ANALYZED',
       'SEEN',
+      'MISSING',
       'MISSING',
       'STATUS_CHANGED',
     ]);

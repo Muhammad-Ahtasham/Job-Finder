@@ -120,6 +120,30 @@ export function exportStorageConfig(env: {
 /** Used only when nothing is configured outside production; production must set its own. */
 const DEV_EXPORT_LINK_SECRET = 'dev-only-export-link-secret-do-not-use-in-production';
 
+/** How often each kind of thing is checked (hours). Configurable here and per schedule via the API. */
+const monitorIntervalFields = {
+  /** ATS boards (Greenhouse, Lever, Ashby): 12-24 h. */
+  MONITOR_ATS_INTERVAL_HOURS: positiveInt('MONITOR_ATS_INTERVAL_HOURS').max(720).default(12),
+  MONITOR_CAREER_PAGE_INTERVAL_HOURS: positiveInt('MONITOR_CAREER_PAGE_INTERVAL_HOURS')
+    .max(720)
+    .default(24),
+  MONITOR_WEBSITE_INTERVAL_HOURS: positiveInt('MONITOR_WEBSITE_INTERVAL_HOURS')
+    .max(720)
+    .default(168),
+};
+
+export function monitoringIntervals(env: {
+  MONITOR_ATS_INTERVAL_HOURS: number;
+  MONITOR_CAREER_PAGE_INTERVAL_HOURS: number;
+  MONITOR_WEBSITE_INTERVAL_HOURS: number;
+}) {
+  return {
+    atsMinutes: env.MONITOR_ATS_INTERVAL_HOURS * 60,
+    careerPageMinutes: env.MONITOR_CAREER_PAGE_INTERVAL_HOURS * 60,
+    websiteMinutes: env.MONITOR_WEBSITE_INTERVAL_HOURS * 60,
+  };
+}
+
 export const apiEnvSchema = baseEnvSchema
   .extend({
     API_HOST: z.string().min(1).default('0.0.0.0'),
@@ -166,6 +190,7 @@ export const apiEnvSchema = baseEnvSchema
       z.string().min(32, 'EXPORT_LINK_SECRET must be at least 32 characters'),
     ),
     EXPORT_LINK_TTL_SECONDS: positiveInt('EXPORT_LINK_TTL_SECONDS').max(900).default(60),
+    ...monitorIntervalFields,
     /** Queued + running exports one workspace may have at a time. */
     EXPORT_MAX_ACTIVE_PER_WORKSPACE: positiveInt('EXPORT_MAX_ACTIVE_PER_WORKSPACE')
       .max(20)
@@ -292,6 +317,29 @@ export const workerEnvSchema = baseEnvSchema
     EXPORT_RETENTION_DAYS: positiveInt('EXPORT_RETENTION_DAYS').max(365).default(7),
     /** Exports stuck in QUEUED/RUNNING longer than this are re-enqueued. */
     EXPORT_RECONCILE_STALE_SECONDS: positiveInt('EXPORT_RECONCILE_STALE_SECONDS').default(120),
+
+    // ---- Scheduled monitoring (see docs/adr/0008-monitoring.md) ----
+    ...monitorIntervalFields,
+    /** Master switch: false stops every scheduled check (schedules and notifications are kept). */
+    MONITOR_ENABLED: booleanFromString.default(true),
+    /** Due schedules claimed per scheduler tick (the tick runs every minute). */
+    MONITOR_BATCH_SIZE: positiveInt('MONITOR_BATCH_SIZE').max(500).default(25),
+    MONITOR_CONCURRENCY: positiveInt('MONITOR_CONCURRENCY').max(20).default(2),
+    MONITOR_MAX_ATTEMPTS: positiveInt('MONITOR_MAX_ATTEMPTS').max(10).default(2),
+    /** After a failed check retry after this long, doubling per failure up to the normal interval. */
+    MONITOR_FAILURE_BACKOFF_MINUTES: positiveInt('MONITOR_FAILURE_BACKOFF_MINUTES').default(30),
+    /** A job missed by an authoritative check is looked for again after this long. */
+    MONITOR_RECHECK_MINUTES: positiveInt('MONITOR_RECHECK_MINUTES').default(30),
+    /** Separate checks that must all miss a job before it is closed (the source saying so closes at once). */
+    MONITOR_MISS_CONFIRMATIONS: positiveInt('MONITOR_MISS_CONFIRMATIONS').max(10).default(2),
+    /** The confirming check must come at least this long after the first miss. */
+    MONITOR_MISS_MIN_GAP_MINUTES: z.coerce.number().int().min(0).max(1440).default(10),
+    /** A schedule claimed by a tick is not claimed again for this long. */
+    MONITOR_LOCK_MINUTES: positiveInt('MONITOR_LOCK_MINUTES').default(15),
+    /** Consecutive failed website checks before "website unavailable" is announced. */
+    MONITOR_WEBSITE_FAILURES_BEFORE_ALERT: positiveInt(
+      'MONITOR_WEBSITE_FAILURES_BEFORE_ALERT',
+    ).default(3),
   })
   .superRefine(requireS3Settings)
   .transform((env) => ({

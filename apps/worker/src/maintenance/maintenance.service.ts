@@ -14,6 +14,7 @@ import { ENV, type Env } from '../config/env.token';
 import { DiscoveryReconciler } from '../discovery/reconciler';
 import { EnrichmentQueueService } from '../enrichment/enrichment-queue.service';
 import { ExportQueueService } from '../exports/export-queue.service';
+import { MonitoringQueueService } from '../monitoring/monitoring-queue.service';
 import { IntelligenceService } from '../intelligence/intelligence.service';
 import { JobQueueService } from '../jobs/job-queue.service';
 import { PRISMA, REDIS } from '../infrastructure.module';
@@ -40,6 +41,7 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     private readonly jobs: JobQueueService,
     @Optional() private readonly intelligence?: IntelligenceService,
     @Optional() private readonly exportQueue?: ExportQueueService,
+    @Optional() private readonly monitoring?: MonitoringQueueService,
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
@@ -94,6 +96,14 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
       },
     );
     await this.queue.upsertJobScheduler(
+      MAINTENANCE_JOBS.MONITORING_TICK,
+      { every: 60_000 },
+      {
+        name: MAINTENANCE_JOBS.MONITORING_TICK,
+        opts: { removeOnComplete: 5, removeOnFail: 50 },
+      },
+    );
+    await this.queue.upsertJobScheduler(
       MAINTENANCE_JOBS.PURGE_EXPIRED_SOURCE_DATA,
       { every: HOUR_MS },
       {
@@ -127,6 +137,9 @@ export class MaintenanceService implements OnApplicationBootstrap, OnApplication
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_JOBS) {
       return this.jobs.reconcile();
+    }
+    if (job.name === MAINTENANCE_JOBS.MONITORING_TICK) {
+      return this.monitoring ? this.monitoring.tick() : undefined;
     }
     if (job.name === MAINTENANCE_JOBS.RECONCILE_EXPORTS) {
       return this.exportQueue ? this.exportQueue.reconcile() : undefined;
