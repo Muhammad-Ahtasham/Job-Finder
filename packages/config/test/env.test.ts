@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { apiEnvSchema, EnvValidationError, parseEnv, webEnvSchema, workerEnvSchema } from '../src';
+import {
+  apiEnvSchema,
+  exportStorageConfig,
+  EnvValidationError,
+  parseEnv,
+  webEnvSchema,
+  workerEnvSchema,
+} from '../src';
 
 const valid = {
   NODE_ENV: 'development',
@@ -47,9 +54,44 @@ describe('apiEnvSchema', () => {
     expect(() =>
       parseEnv(apiEnvSchema, { ...valid, NODE_ENV: 'production', SESSION_COOKIE_SECURE: 'false' }),
     ).toThrow(/SESSION_COOKIE_SECURE/);
-    const prod = parseEnv(apiEnvSchema, { ...valid, NODE_ENV: 'production' });
+    const prod = parseEnv(apiEnvSchema, {
+      ...valid,
+      NODE_ENV: 'production',
+      EXPORT_LINK_SECRET: 'x'.repeat(32),
+    });
     expect(prod.SESSION_COOKIE_SECURE).toBe(true);
     expect(prod.LOG_LEVEL).toBe('info');
+  });
+
+  it('requires a real export link secret in production, with a safe default elsewhere', () => {
+    expect(() => parseEnv(apiEnvSchema, { ...valid, NODE_ENV: 'production' })).toThrow(
+      /EXPORT_LINK_SECRET/,
+    );
+    expect(() =>
+      parseEnv(apiEnvSchema, { ...valid, NODE_ENV: 'production', EXPORT_LINK_SECRET: 'short' }),
+    ).toThrow(/at least 32/);
+    const dev = parseEnv(apiEnvSchema, valid);
+    expect(dev.EXPORT_LINK_SECRET.length).toBeGreaterThanOrEqual(32);
+    expect(dev).toMatchObject({ EXPORT_STORAGE_DRIVER: 'fs', EXPORT_LINK_TTL_SECONDS: 60 });
+  });
+
+  it('requires bucket settings for the s3 export storage', () => {
+    expect(() => parseEnv(apiEnvSchema, { ...valid, EXPORT_STORAGE_DRIVER: 's3' })).toThrow(
+      /EXPORT_S3_BUCKET/,
+    );
+    const env = parseEnv(apiEnvSchema, {
+      ...valid,
+      EXPORT_STORAGE_DRIVER: 's3',
+      EXPORT_S3_BUCKET: 'exports',
+      EXPORT_S3_ACCESS_KEY_ID: 'id',
+      EXPORT_S3_SECRET_ACCESS_KEY: 'secret',
+    });
+    expect(exportStorageConfig(env)).toMatchObject({
+      driver: 's3',
+      bucket: 'exports',
+      forcePathStyle: true,
+    });
+    expect(exportStorageConfig(parseEnv(apiEnvSchema, valid))).toMatchObject({ driver: 'fs' });
   });
 
   it('rejects idle TTL longer than absolute TTL', () => {

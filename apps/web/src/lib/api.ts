@@ -8,6 +8,10 @@ import {
   dashboardSummarySchema,
   directoryFacetsSchema,
   enrichResponseSchema,
+  exportDownloadLinkSchema,
+  exportListResponseSchema,
+  exportSchema,
+  type CreateExportRequest,
   jobDetailSchema,
   jobDirectoryResponseSchema,
   jobHistoryResponseSchema,
@@ -163,9 +167,15 @@ export const listCompanyDirectory = (query: Params) =>
 export const listJobDirectory = (query: Params) =>
   json(`/api/v1/directory/jobs${qs(query)}`, jobDirectoryResponseSchema);
 
-/** Same-origin download link: the session cookie and workspace come with the browser request. */
-export const exportUrl = (dataset: 'companies' | 'jobs', query: Params) =>
-  `/api/v1/exports/${dataset}.csv${qs(query)}`;
+// ---------------------------------------------------------------- exports (asynchronous)
+export const createExport = (input: CreateExportRequest | Record<string, unknown>) =>
+  json('/api/v1/exports', exportSchema, post(input));
+export const listExports = (query: Params = {}) =>
+  json(`/api/v1/exports${qs(query)}`, exportListResponseSchema);
+export const getExport = (id: string) => json(`/api/v1/exports/${id}`, exportSchema);
+/** A short-lived, signed URL for the file; the caller navigates to it straight away. */
+export const getExportDownloadLink = (id: string) =>
+  json(`/api/v1/exports/${id}/download?mode=json`, exportDownloadLinkSchema);
 
 // ---------------------------------------------------------------- company profile
 export const getCompanySources = (id: string) =>

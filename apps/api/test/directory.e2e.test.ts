@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { toCsv } from '../src/directory/directory.service';
 import { cookieValue, createTestApp, newCredentials, type TestContext } from './helpers';
 
 let ctx: TestContext;
@@ -361,7 +360,7 @@ describe('GET /directory/jobs', () => {
   });
 });
 
-describe('facets and exports', () => {
+describe('facets', () => {
   it('lists the options that exist in the workspace', async () => {
     const a = await newActor();
     await seed(a);
@@ -370,26 +369,5 @@ describe('facets and exports', () => {
       industries: ['Software'],
       roleCategories: ['DESIGN', 'SOFTWARE_ENGINEERING'],
     });
-  });
-
-  it('exports CSV with the same filters', async () => {
-    const a = await newActor();
-    await seed(a);
-    const res = await get(a, '/exports/companies.csv?hasHrEmail=true');
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toMatch(/text\/csv/);
-    expect(res.headers['content-disposition']).toMatch(/attachment/);
-    const lines = res.text.trim().split('\r\n');
-    expect(lines[0]).toMatch(/^Company,Industry,City/);
-    expect(lines).toHaveLength(2);
-    expect(lines[1]).toContain('Alpha Soft');
-    const jobs = await get(a, '/exports/jobs.csv?status=OPEN');
-    expect(jobs.text.trim().split('\r\n')).toHaveLength(3);
-  });
-
-  it('neutralises spreadsheet formulas and quotes', () => {
-    expect(toCsv(['a'], [['=HYPERLINK("x")'], ['a,"b"'], [5], [null]])).toBe(
-      'a\r\n"\'=HYPERLINK(""x"")"\r\n"a,""b"""\r\n5\r\n\r\n',
-    );
   });
 });

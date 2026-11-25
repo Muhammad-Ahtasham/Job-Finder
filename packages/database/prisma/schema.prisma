@@ -37,6 +37,7 @@ model User {
   requestedEnrichments   ExtractionRun[]   @relation("ExtractionRequester")
   resolvedCompanyReviews CompanyReview[]   @relation("CompanyReviewResolver")
   requestedJobRuns       JobRun[]          @relation("JobRunRequester")
+  requestedExports       Export[]          @relation("ExportRequester")
 
   @@map("users")
 }
@@ -67,6 +68,7 @@ model Workspace {
   jobChecks       JobCheck[]
   jobObservations JobObservation[]
   jobMatches      JobMatch[]
+  exports         Export[]
   matchPrefs      MatchPreference[]
 
   @@map("workspaces")
@@ -1138,4 +1140,67 @@ model JobMatchEvidence {
 
   @@index([matchId, position])
   @@map("job_match_evidence")
+}
+
+// ============================================================== Phase 7: exports
+
+enum ExportType {
+  COMPANIES
+  JOBS
+}
+
+enum ExportFormat {
+  CSV
+  XLSX
+}
+
+enum ExportStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  /// The file passed its retention period and was deleted; the metadata stays as history.
+  EXPIRED
+}
+
+/// One export request: its parameters, progress and (once done) the stored file. Files live in
+/// object storage under `storageKey`, never in the database.
+model Export {
+  id            String       @id @default(uuid(7)) @db.Uuid
+  workspaceId   String       @map("workspace_id") @db.Uuid
+  requestedById String?      @map("requested_by_id") @db.Uuid
+  type          ExportType
+  format        ExportFormat
+  /// ALL | FILTERED | PROJECT (derived from the request; kept for the history view).
+  scope         String
+  /// Not a foreign key: the export survives the project. The name is a snapshot.
+  projectId     String?      @map("project_id") @db.Uuid
+  projectName   String?      @map("project_name")
+  /// The validated filters the export was requested with.
+  filters       Json         @default("{}")
+  status        ExportStatus @default(QUEUED)
+  attempts      Int          @default(0)
+  rowsTotal     Int?         @map("rows_total")
+  rowsProcessed Int          @default(0) @map("rows_processed")
+  rowCount      Int?         @map("row_count")
+  fileName      String?      @map("file_name")
+  storageKey    String?      @map("storage_key")
+  sizeBytes     Int?         @map("size_bytes")
+  /// SHA-256 of the stored file.
+  checksum      String?
+  errorCode     String?      @map("error_code")
+  errorMessage  String?      @map("error_message")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  startedAt     DateTime?    @map("started_at")
+  finishedAt    DateTime?    @map("finished_at")
+  /// When the stored file is deleted.
+  expiresAt     DateTime?    @map("expires_at")
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  requestedBy User?     @relation("ExportRequester", fields: [requestedById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([status, createdAt])
+  @@index([expiresAt])
+  @@map("exports")
 }

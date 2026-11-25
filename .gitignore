@@ -10,3 +10,5 @@ coverage/
 packages/database/src/generated/
 *.log
 .DS_Store
+
+.data/

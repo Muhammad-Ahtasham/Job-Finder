@@ -10,23 +10,9 @@ import type {
   JobDirectoryResponse,
   JobRow,
 } from '@jobfinder/contracts';
-import { normalizeSkill } from '@jobfinder/intelligence';
+import { companyWhere, HR_CATEGORIES, hrEmailWhere, jobWhere } from '@jobfinder/exports';
 import { PrismaService } from '../prisma/prisma.service';
 import type { WorkspaceContext } from '../workspaces/workspace.types';
-
-/** Email categories that count as "published HR email". */
-const HR_CATEGORIES = ['HR', 'CAREERS', 'RECRUITMENT'] as const;
-const EXPORT_LIMIT = 5000;
-
-const contains = (value: string) => ({ contains: value, mode: 'insensitive' as const });
-
-/** Companies found by a project (directly, or through a company merged into them). */
-const foundByProject = (projectId: string): Prisma.CompanyWhereInput => ({
-  OR: [
-    { results: { some: { run: { projectId } } } },
-    { mergedFrom: { some: { results: { some: { run: { projectId } } } } } },
-  ],
-});
 
 @Injectable()
 export class DirectoryService {
@@ -56,7 +42,7 @@ export class DirectoryService {
       this.db.company.count({
         where: { ...base, careersStatus: { in: ['VERIFIED', 'UNVERIFIED'] } },
       }),
-      this.db.company.count({ where: { ...base, ...this.hrEmailWhere() } }),
+      this.db.company.count({ where: { ...base, ...hrEmailWhere() } }),
       this.db.company.count({ where: { ...base, jobs: { some: { status: 'OPEN' } } } }),
       this.db.job.count({ where: { workspaceId: workspace.id, status: 'OPEN' } }),
       this.db.job.count({
@@ -125,54 +111,12 @@ export class DirectoryService {
 
   // ---------------------------------------------------------------- companies
 
-  private hrEmailWhere(): Prisma.CompanyWhereInput {
-    return {
-      contacts: {
-        some: {
-          kind: 'EMAIL',
-          category: { in: [...HR_CATEGORIES] },
-          verificationStatus: 'VERIFIED',
-        },
-      },
-    };
-  }
-
-  private companyWhere(
-    workspace: WorkspaceContext,
-    q: Partial<CompanyDirectoryQuery>,
-  ): Prisma.CompanyWhereInput {
-    const and: Prisma.CompanyWhereInput[] = [];
-    if (q.q) and.push({ OR: [{ displayName: contains(q.q) }, { domain: contains(q.q) }] });
-    if (q.city) and.push({ city: contains(q.city) });
-    if (q.industry) {
-      and.push({
-        results: {
-          some: { run: { project: { industry: { equals: q.industry, mode: 'insensitive' } } } },
-        },
-      });
-    }
-    if (q.websiteStatus) and.push({ websiteStatus: q.websiteStatus });
-    if (q.hasWebsite !== undefined) and.push({ website: q.hasWebsite ? { not: null } : null });
-    if (q.hasHrEmail !== undefined)
-      and.push(q.hasHrEmail ? this.hrEmailWhere() : { NOT: this.hrEmailWhere() });
-    if (q.hasCareersPage !== undefined) {
-      const has: Prisma.CompanyWhereInput = { careersStatus: { in: ['VERIFIED', 'UNVERIFIED'] } };
-      and.push(q.hasCareersPage ? has : { NOT: has });
-    }
-    if (q.hiring !== undefined) {
-      const open: Prisma.CompanyWhereInput = { jobs: { some: { status: 'OPEN' } } };
-      and.push(q.hiring ? open : { NOT: open });
-    }
-    if (q.projectId) and.push(foundByProject(q.projectId));
-    return { workspaceId: workspace.id, status: 'ACTIVE', AND: and };
-  }
-
   async companies(
     workspace: WorkspaceContext,
     q: CompanyDirectoryQuery,
   ): Promise<CompanyDirectoryResponse> {
     await this.assertProject(workspace, q.projectId);
-    const where = this.companyWhere(workspace, q);
+    const where = companyWhere(workspace.id, q);
     const dir = q.order;
     const orderBy: Prisma.CompanyOrderByWithRelationInput[] =
       q.sort === 'name'
@@ -282,50 +226,6 @@ export class DirectoryService {
     if (!found) throw new NotFoundException('Project not found');
   }
 
-  private jobWhere(workspace: WorkspaceContext, q: JobDirectoryQuery): Prisma.JobWhereInput {
-    const and: Prisma.JobWhereInput[] = [];
-    if (q.q) {
-      and.push({
-        OR: [
-          { title: contains(q.q) },
-          { normalizedTitle: contains(q.q) },
-          { company: { displayName: contains(q.q) } },
-        ],
-      });
-    }
-    if (q.city)
-      and.push({ OR: [{ location: contains(q.city) }, { company: { city: contains(q.city) } }] });
-    if (q.industry) {
-      and.push({
-        company: {
-          results: {
-            some: { run: { project: { industry: { equals: q.industry, mode: 'insensitive' } } } },
-          },
-        },
-      });
-    }
-    if (q.role)
-      and.push({
-        OR: [
-          { roleCategory: q.role },
-          { title: contains(q.role) },
-          { normalizedTitle: contains(q.role) },
-        ],
-      });
-    if (q.skill)
-      and.push({ skills: { some: { skillKey: normalizeSkill(q.skill)?.key ?? '\u0000' } } });
-    if (q.projectId) and.push({ company: foundByProject(q.projectId) });
-    return {
-      workspaceId: workspace.id,
-      ...(q.status ? { status: q.status } : {}),
-      ...(q.seniority ? { seniority: q.seniority } : {}),
-      ...(q.employmentType ? { employmentType: q.employmentType } : {}),
-      ...(q.workplaceType ? { workplaceType: q.workplaceType } : {}),
-      ...(q.companyId ? { companyId: q.companyId } : {}),
-      AND: and,
-    };
-  }
-
   private jobInclude(projectId?: string) {
     return {
       company: { select: { displayName: true, city: true } },
@@ -344,7 +244,7 @@ export class DirectoryService {
     if (q.sort === 'match' && !q.projectId) {
       throw new BadRequestException('Sorting by match score needs a projectId');
     }
-    const where = this.jobWhere(workspace, q);
+    const where = jobWhere(workspace.id, q);
     const include = this.jobInclude(q.projectId);
     const skip = (q.page - 1) * q.pageSize;
     type JobRecord = Prisma.JobGetPayload<{ include: ReturnType<DirectoryService['jobInclude']> }>;
@@ -451,93 +351,4 @@ export class DirectoryService {
       analysisState: j.analysisHash ? 'ANALYZED' : 'PENDING',
     };
   }
-
-  // ---------------------------------------------------------------- exports
-
-  async exportCompanies(workspace: WorkspaceContext, q: CompanyDirectoryQuery): Promise<string> {
-    const res = await this.companies(workspace, { ...q, page: 1, pageSize: 100 });
-    const rows = [...res.items];
-    for (let page = 2; page <= res.totalPages && rows.length < EXPORT_LIMIT; page++) {
-      rows.push(...(await this.companies(workspace, { ...q, page, pageSize: 100 })).items);
-    }
-    return toCsv(
-      [
-        'Company',
-        'Industry',
-        'City',
-        'Country',
-        'Website',
-        'Website status',
-        'HR email',
-        'Careers page',
-        'LinkedIn',
-        'Hiring',
-        'Open jobs',
-        'Total jobs',
-      ],
-      rows
-        .slice(0, EXPORT_LIMIT)
-        .map((c) => [
-          c.displayName,
-          c.industries.join('; '),
-          c.city,
-          c.country,
-          c.website,
-          c.websiteStatus,
-          c.hrEmail,
-          c.careersUrl,
-          c.linkedin,
-          c.hiring ? 'yes' : 'no',
-          c.openJobs,
-          c.jobCount,
-        ]),
-    );
-  }
-
-  async exportJobs(workspace: WorkspaceContext, q: JobDirectoryQuery): Promise<string> {
-    const res = await this.jobs(workspace, { ...q, page: 1, pageSize: 100 });
-    const rows = [...res.items];
-    for (let page = 2; page <= res.totalPages && rows.length < EXPORT_LIMIT; page++) {
-      rows.push(...(await this.jobs(workspace, { ...q, page, pageSize: 100 })).items);
-    }
-    return toCsv(
-      [
-        'Job title',
-        'Company',
-        'City',
-        'Skills',
-        'Min years',
-        'Max years',
-        'Match score',
-        'Status',
-        'Application link',
-        'Published',
-      ],
-      rows
-        .slice(0, EXPORT_LIMIT)
-        .map((j) => [
-          j.title,
-          j.companyName,
-          j.city,
-          j.skills.map((s) => s.name).join('; '),
-          j.minYears,
-          j.maxYears,
-          j.matchScore,
-          j.status,
-          j.applicationUrl,
-          j.publishedAt,
-        ]),
-    );
-  }
-}
-
-/** RFC 4180 CSV; cells that a spreadsheet would run as a formula are neutralised. */
-export function toCsv(header: string[], rows: (string | number | null)[][]): string {
-  const cell = (value: string | number | null): string => {
-    if (value === null || value === undefined) return '';
-    let text = String(value);
-    if (/^[=+\-@\t\r]/.test(text) && typeof value === 'string') text = `'${text}`;
-    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-  };
-  return [header, ...rows].map((r) => r.map(cell).join(',')).join('\r\n') + '\r\n';
 }
